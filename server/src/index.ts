@@ -115,11 +115,13 @@ app.get("/api/league/:leagueKey", async (req, res) => {
     const yahooUrl = `https://fantasysports.yahooapis.com/fantasy/v2/league/${encodeURIComponent(
       leagueKey
     )}/standings?format=json`;
+    console.log("Fetching league from Yahoo API:\n", yahooUrl);
     const resp = await axios.get(yahooUrl, {
       headers: {
         Authorization: `Bearer ${token.access_token}`,
       },
     });
+    console.log("Raw league data:", JSON.stringify(resp.data, null, 2));
     const normalized = normalizeLeague(resp.data);
     res.json(normalized);
   } catch (err: any) {

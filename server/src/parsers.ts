@@ -1,37 +1,86 @@
-export function normalizeLeague(raw: any) {
+import type {
+  YahooFantasyResponse,
+  YahooLeagueInfo,
+  YahooStandingsWrapper,
+  YahooTeamWrapper,
+  NormalizedLeague,
+  NormalizedTeam,
+  WeeklyTeamScore
+} from "./yahoo-types";
+
+export function normalizeLeague(raw: YahooFantasyResponse | any): NormalizedLeague {
   try {
-    const leagueNode = raw?.fantasy_content?.league || raw?.league || raw;
-    const leagueName = leagueNode?.name || leagueNode?.league_name || "league";
-    const leagueId = leagueNode?.league_id || leagueNode?.league_key || leagueNode?.id || "unknown";
+    // Handle Yahoo's specific structure
+    let leagueInfo: YahooLeagueInfo | undefined;
+    let standingsWrapper: YahooStandingsWrapper | undefined;
 
-    // Yahoo standings structure can be nested. Try common paths.
-    const teamsRaw =
-      leagueNode?.standings?.teams?.team ||
-      leagueNode?.standings?.team ||
-      leagueNode?.teams?.team ||
-      leagueNode?.teams ||
-      [];
+    if (raw?.fantasy_content?.league) {
+      // Standard Yahoo response
+      const leagueArray = raw.fantasy_content.league;
+      leagueInfo = leagueArray[0] as YahooLeagueInfo;
+      standingsWrapper = leagueArray[1] as YahooStandingsWrapper;
+    } else {
+      // Fallback for non-standard structure
+      console.warn("Non-standard league structure detected");
+      return { id: "unknown", name: "unknown", teams: [], points: [] };
+    }
 
-    const teams = Array.isArray(teamsRaw)
-      ? teamsRaw.map((t: any) => ({
-          id: t?.team_id || t?.team_key || t?.id,
-          name:
-            t?.name ||
-            t?.nickname ||
-            t?.team_name ||
-            (t?.managers?.manager?.nickname ?? "Team")
-        }))
-      : [];
+    const leagueId = leagueInfo.league_id;
+    const leagueName = leagueInfo.name;
+    const endWeek = parseInt(leagueInfo.end_week, 10) || 17;
 
-    // For POC: if Yahoo doesn't provide weekly scores, synthesize sample points
-    const points: { week: number; teamName: string; score: number }[] = [];
-    const weeks = 17;
-    for (let w = 1; w <= weeks; w++) {
-      for (const t of teams) {
+    // Extract teams from standings
+    const teamsData = standingsWrapper.standings[0].teams;
+    const teams: NormalizedTeam[] = [];
+
+    // Iterate through numeric keys (Yahoo uses "0", "1", "2", etc. plus "count")
+    for (const key in teamsData) {
+      if (key === "count") continue;
+
+      const teamWrapper = teamsData[key] as YahooTeamWrapper;
+      if (!teamWrapper || !teamWrapper.team) continue;
+
+      const [teamInfoArray, teamPoints, teamStandings] = teamWrapper.team;
+
+      // Find the team_id and name from the info array
+      let teamId = "unknown";
+      let teamName = "Team";
+      for (const infoObj of teamInfoArray) {
+        if (infoObj.team_id) teamId = infoObj.team_id;
+        if (infoObj.name) teamName = infoObj.name;
+      }
+
+      const seasonTotal = parseFloat(teamPoints.team_points.total);
+      const rank = parseInt(teamStandings.team_standings.rank, 10);
+      const wins = parseInt(teamStandings.team_standings.outcome_totals.wins, 10);
+      const losses = parseInt(teamStandings.team_standings.outcome_totals.losses, 10);
+      const ties = teamStandings.team_standings.outcome_totals.ties;
+
+      teams.push({
+        id: teamId,
+        name: teamName,
+        seasonTotal,
+        rank,
+        wins,
+        losses,
+        ties
+      });
+    }
+
+    // For POC: Yahoo doesn't provide weekly scores in standings endpoint
+    // We'll synthesize sample data for visualization
+    const points: WeeklyTeamScore[] = [];
+    for (let week = 1; week <= endWeek; week++) {
+      for (const team of teams) {
+        // Generate somewhat realistic scores with variance
+        const avgScore = team.seasonTotal / endWeek;
+        const variance = avgScore * 0.3;
+        const score = Math.round(avgScore + (Math.random() - 0.5) * variance * 2);
+        
         points.push({
-          week: w,
-          teamName: t.name,
-          score: Math.round(60 + Math.random() * 80)
+          week,
+          teamName: team.name,
+          score: Math.max(50, score) // Ensure minimum score
         });
       }
     }
