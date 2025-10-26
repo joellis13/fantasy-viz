@@ -1,5 +1,12 @@
 {
   "name": "fantasy-viz",
   "private": true,
-  "workspaces": ["client", "server"]
+  "workspaces": [
+    "client",
+    "server"
+  ],
+  "scripts": {
+    "start": "start npm --prefix ./server/ run dev && start npm --prefix ./client/ run dev",
+    "install-all": "npm install --workspaces"
+  }
 }

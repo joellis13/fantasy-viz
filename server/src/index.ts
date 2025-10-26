@@ -2,6 +2,7 @@ import fs from "fs";
 import http from "http";
 import https from "https";
 import path from "path";
+import crypto from "crypto";
 import express from "express";
 import cookieSession from "cookie-session";
 import dotenv from "dotenv";
@@ -51,7 +52,7 @@ function buildYahooAuthUrl(state: string) {
     redirect_uri: `${BASE_URL}/auth/yahoo/callback`,
     response_type: "code",
     language: "en-us",
-    // add scope if needed e.g. scope: "openid fspt-w"
+    scope: "openid fspt-r", // fspt-r for Fantasy Sports Read access
   });
   params.set("state", state);
   return `${authUrl}?${params.toString()}`;
@@ -59,7 +60,7 @@ function buildYahooAuthUrl(state: string) {
 
 // Debug-friendly login handler: returns constructed URL when ?debug=1
 app.get("/auth/yahoo/login", (req, res) => {
-  const state = Math.random().toString(36).slice(2);
+  const state = crypto.randomBytes(32).toString("hex");
   req.session!.oauthState = state;
   const url = buildYahooAuthUrl(state);
   console.log("Yahoo auth URL:", url);
@@ -148,11 +149,11 @@ function createHttpsServer(certPath?: string, keyPath?: string) {
     const certFile =
       certPath ||
       SSL_CERT_PATH ||
-      path.join(process.cwd(), "server", "certs", "localhost.pem");
+      path.join(process.cwd(), "certs", "localhost.pem");
     const keyFile =
       keyPath ||
       SSL_KEY_PATH ||
-      path.join(process.cwd(), "server", "certs", "localhost-key.pem");
+      path.join(process.cwd(), "certs", "localhost-key.pem");
 
     if (!fs.existsSync(certFile) || !fs.existsSync(keyFile)) {
       console.warn("HTTPS cert or key file not found.", { certFile, keyFile });
