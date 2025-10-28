@@ -8,7 +8,7 @@ import cookieSession from "cookie-session";
 import dotenv from "dotenv";
 import axios from "axios";
 import qs from "qs";
-import { normalizeLeague } from "./parsers";
+import { normalizeLeague, normalizePlayerComparison } from "./parsers";
 
 dotenv.config();
 
@@ -129,6 +129,112 @@ app.get("/api/league/:leagueKey", async (req, res) => {
     res
       .status(500)
       .json({ error: "failed to fetch league", details: err.message });
+  }
+});
+
+/**
+ * Get player comparison data for a team's roster across all weeks
+ * GET /api/team/:teamKey/player-comparison?startWeek=1&endWeek=17
+ *
+ * This endpoint fetches roster data for each week and compiles projected vs actual points
+ * for all players on the team throughout the season, enabling trend analysis.
+ */
+app.get("/api/team/:teamKey/player-comparison", async (req, res) => {
+  const token = getTokenForReq(req);
+  if (!token) return res.status(401).json({ error: "not authenticated" });
+
+  const teamKey = req.params.teamKey;
+  const startWeek = parseInt(String(req.query.startWeek || "1"), 10);
+  const endWeek = parseInt(String(req.query.endWeek || "17"), 10);
+
+  // Validate week range
+  if (
+    isNaN(startWeek) ||
+    isNaN(endWeek) ||
+    startWeek < 1 ||
+    endWeek > 18 ||
+    startWeek > endWeek
+  ) {
+    return res.status(400).json({
+      error: "Invalid week range",
+      details:
+        "startWeek and endWeek must be between 1-18 and startWeek <= endWeek",
+    });
+  }
+
+  try {
+    console.log(
+      `Fetching player comparison for team ${teamKey}, weeks ${startWeek}-${endWeek}`
+    );
+
+    // Fetch roster data for each week in parallel
+    const weeklyPromises: Promise<{ week: number; data: any }>[] = [];
+
+    for (let week = startWeek; week <= endWeek; week++) {
+      const yahooUrl = `https://fantasysports.yahooapis.com/fantasy/v2/team/${encodeURIComponent(
+        teamKey
+      )}/roster;week=${week}?format=json`;
+
+      const promise = axios
+        .get(yahooUrl, {
+          headers: {
+            Authorization: `Bearer ${token.access_token}`,
+          },
+        })
+        .then((resp) => ({ week, data: resp.data }))
+        .catch((err) => {
+          console.warn(`Failed to fetch week ${week}:`, err.message);
+          return { week, data: null };
+        });
+
+      weeklyPromises.push(promise);
+    }
+
+    // Wait for all requests to complete
+    const weeklyResponses = await Promise.all(weeklyPromises);
+
+    // Filter out failed requests
+    const validResponses = weeklyResponses.filter((r) => r.data !== null);
+
+    if (validResponses.length === 0) {
+      return res.status(500).json({
+        error: "Failed to fetch any roster data",
+        details: "All weekly roster requests failed",
+      });
+    }
+
+    console.log(
+      `Successfully fetched ${validResponses.length} weeks of roster data`
+    );
+
+    // Parse and normalize the data
+    const playerComparisons = normalizePlayerComparison(validResponses);
+
+    res.json({
+      teamKey,
+      weekRange: { start: startWeek, end: endWeek },
+      weeksRetrieved: validResponses.length,
+      players: playerComparisons,
+      summary: {
+        totalPlayers: playerComparisons.length,
+        averageAccuracy:
+          playerComparisons.length > 0
+            ? playerComparisons.reduce(
+                (sum, p) => sum + p.summary.accuracyRate,
+                0
+              ) / playerComparisons.length
+            : 0,
+      },
+    });
+  } catch (err: any) {
+    console.error(
+      "Error fetching player comparison:",
+      err.response?.data || err.message
+    );
+    res.status(500).json({
+      error: "failed to fetch player comparison",
+      details: err.message,
+    });
   }
 });
 

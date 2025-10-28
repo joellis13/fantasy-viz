@@ -8,6 +8,11 @@ import type {
   NormalizedLeague,
   NormalizedTeam,
   WeeklyTeamScore,
+  TeamRosterResponse,
+  YahooRosterPlayer,
+  YahooPlayerInfo,
+  NormalizedPlayerComparison,
+  PlayerWeeklyComparison,
 } from "./yahoo-types";
 
 /**
@@ -273,5 +278,242 @@ export function normalizeLeague(
       console.error("Error details:", err.message, err.stack);
     }
     return { id: "unknown", name: "unknown", teams: [], points: [] };
+  }
+}
+
+/**
+ * Type guard for team roster response
+ */
+function isTeamRosterResponse(data: unknown): data is TeamRosterResponse {
+  if (!isRecord(data)) return false;
+
+  const candidate = data as Record<string, unknown>;
+  if (!isRecord(candidate.fantasy_content)) return false;
+
+  const fantasyContent = candidate.fantasy_content;
+  const team = fantasyContent.team;
+
+  if (!Array.isArray(team) || team.length < 2) return false;
+
+  // Check for roster in second element
+  const rosterWrapper = team[1];
+  if (!isRecord(rosterWrapper) || !rosterWrapper.roster) return false;
+
+  return true;
+}
+
+/**
+ * Extract player info from the player info array
+ */
+function extractPlayerInfo(playerInfoArray: YahooPlayerInfo[]): {
+  playerId: string;
+  name: string;
+  position: string;
+  team: string;
+} {
+  let playerId = "unknown";
+  let name = "Unknown Player";
+  let position = "UNKNOWN";
+  let team = "";
+
+  for (const info of playerInfoArray) {
+    if (info?.player_id) playerId = String(info.player_id);
+    if (info?.name?.full) name = info.name.full;
+    if (info?.display_position) position = info.display_position;
+    if (info?.editorial_team_abbr) team = info.editorial_team_abbr;
+  }
+
+  return { playerId, name, position, team };
+}
+
+/**
+ * Parse player data from roster response for a single week
+ */
+function parsePlayerWeekData(
+  playerWrapper: YahooRosterPlayer
+): {
+  playerInfo: ReturnType<typeof extractPlayerInfo>;
+  projectedPoints: number;
+  actualPoints: number;
+} | null {
+  if (!playerWrapper?.player || !Array.isArray(playerWrapper.player)) {
+    return null;
+  }
+
+  const [playerInfoArray, ...rest] = playerWrapper.player;
+
+  if (!Array.isArray(playerInfoArray)) {
+    return null;
+  }
+
+  const playerInfo = extractPlayerInfo(playerInfoArray);
+
+  // Find projected and actual points in the array
+  // Yahoo returns these as additional elements in the player array
+  let projectedPoints = 0;
+  let actualPoints = 0;
+
+  for (const item of rest) {
+    if (isRecord(item) && "coverage_type" in item && "total" in item) {
+      const points = safeParseFloat(item.total);
+      // Projected points don't have an actual week value in some responses
+      // We need to check both player_points and player_projected_points
+      if (item.coverage_type === "week") {
+        actualPoints = points;
+      }
+    }
+  }
+
+  // Also check in playerInfoArray elements for player_points and player_projected_points
+  for (const info of playerInfoArray) {
+    if (info?.player_points?.total) {
+      actualPoints = safeParseFloat(info.player_points.total);
+    }
+    if (info?.player_projected_points?.total) {
+      projectedPoints = safeParseFloat(info.player_projected_points.total);
+    }
+  }
+
+  return {
+    playerInfo,
+    projectedPoints,
+    actualPoints,
+  };
+}
+
+/**
+ * Normalize player comparison data from multiple weekly roster responses
+ * Takes an array of roster responses (one per week) and combines them into a single comparison
+ */
+export function normalizePlayerComparison(
+  weeklyRosterResponses: Array<{ week: number; data: unknown }>
+): NormalizedPlayerComparison[] {
+  const playerMap = new Map<
+    string,
+    {
+      playerKey: string;
+      playerId: string;
+      name: string;
+      position: string;
+      team: string;
+      weeklyData: PlayerWeeklyComparison[];
+    }
+  >();
+
+  try {
+    for (const { week, data } of weeklyRosterResponses) {
+      if (!isTeamRosterResponse(data)) {
+        console.warn(`Invalid roster response for week ${week}`);
+        continue;
+      }
+
+      const team = data.fantasy_content.team;
+      const rosterWrapper = team[1];
+
+      if (!isRecord(rosterWrapper) || !rosterWrapper.roster) {
+        console.warn(`No roster found for week ${week}`);
+        continue;
+      }
+
+      const roster = rosterWrapper.roster as any;
+      const players = roster.players;
+
+      if (!isRecord(players)) {
+        console.warn(`Invalid players data for week ${week}`);
+        continue;
+      }
+
+      // Iterate through player keys
+      for (const key in players) {
+        if (key === "count") continue;
+
+        const playerWrapper = players[key] as YahooRosterPlayer;
+        const parsed = parsePlayerWeekData(playerWrapper);
+
+        if (!parsed) continue;
+
+        const { playerInfo, projectedPoints, actualPoints } = parsed;
+        const playerKey = `${playerInfo.playerId}`; // Use player ID as key
+
+        // Initialize player entry if not exists
+        if (!playerMap.has(playerKey)) {
+          playerMap.set(playerKey, {
+            playerKey: `player-${playerInfo.playerId}`,
+            playerId: playerInfo.playerId,
+            name: playerInfo.name,
+            position: playerInfo.position,
+            team: playerInfo.team,
+            weeklyData: [],
+          });
+        }
+
+        const player = playerMap.get(playerKey)!;
+
+        // Calculate difference and percentage
+        const difference = actualPoints - projectedPoints;
+        const percentDifference =
+          projectedPoints > 0
+            ? ((actualPoints - projectedPoints) / projectedPoints) * 100
+            : 0;
+
+        player.weeklyData.push({
+          week,
+          projectedPoints,
+          actualPoints,
+          difference,
+          percentDifference,
+        });
+      }
+    }
+
+    // Convert map to array and calculate summaries
+    const result: NormalizedPlayerComparison[] = Array.from(
+      playerMap.values()
+    ).map((player) => {
+      // Sort weekly data by week
+      player.weeklyData.sort((a, b) => a.week - b.week);
+
+      const totalProjected = player.weeklyData.reduce(
+        (sum, w) => sum + w.projectedPoints,
+        0
+      );
+      const totalActual = player.weeklyData.reduce(
+        (sum, w) => sum + w.actualPoints,
+        0
+      );
+      const totalDifference = totalActual - totalProjected;
+      const weeksPlayed = player.weeklyData.length;
+
+      // Calculate accuracy rate (within 20% of projection)
+      const accurateWeeks = player.weeklyData.filter(
+        (w) => Math.abs(w.percentDifference) <= 20
+      ).length;
+      const accuracyRate =
+        weeksPlayed > 0 ? (accurateWeeks / weeksPlayed) * 100 : 0;
+
+      return {
+        ...player,
+        summary: {
+          totalProjected,
+          totalActual,
+          totalDifference,
+          averageProjected: weeksPlayed > 0 ? totalProjected / weeksPlayed : 0,
+          averageActual: weeksPlayed > 0 ? totalActual / weeksPlayed : 0,
+          weeksPlayed,
+          accuracyRate,
+        },
+      };
+    });
+
+    // Sort by total actual points (highest first)
+    result.sort((a, b) => b.summary.totalActual - a.summary.totalActual);
+
+    return result;
+  } catch (err) {
+    console.error("normalizePlayerComparison error:", err);
+    if (err instanceof Error) {
+      console.error("Error details:", err.message, err.stack);
+    }
+    return [];
   }
 }

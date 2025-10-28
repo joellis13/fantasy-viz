@@ -1,0 +1,2276 @@
+openapi: 3.0.3
+info:
+  title: Yahoo Fantasy Sports API
+  description: |
+    The Yahoo Fantasy Sports API provides programmatic access to Yahoo Fantasy Sports data.
+    This API allows developers to retrieve and manage fantasy sports leagues, teams, players,
+    rosters, transactions, and statistics across multiple sports including NFL, NBA, MLB, NHL, and more.
+
+    ## Key Features
+    - Access to game, league, team, and player data
+    - Real-time stats and projections
+    - Roster management
+    - Transaction history
+    - Draft results
+    - Standings and scoreboards
+    - User-specific data access
+
+    ## Authentication
+    All API requests require OAuth 2.0 authentication with appropriate scopes.
+
+  version: 2.0.0
+  contact:
+    name: Yahoo Developer Network
+    url: https://developer.yahoo.com/fantasysports/
+  termsOfService: https://legal.yahoo.com/us/en/yahoo/terms/product-atos/apiforydn/index.html
+  license:
+    name: Yahoo Terms of Service
+    url: https://legal.yahoo.com/us/en/yahoo/terms/otos/index.html
+
+servers:
+  - url: https://fantasysports.yahooapis.com/fantasy/v2
+    description: Yahoo Fantasy Sports API v2 Production Server
+
+security:
+  - OAuth2: [fspt-r]
+
+components:
+  securitySchemes:
+    OAuth2:
+      type: oauth2
+      description: |
+        Yahoo Fantasy Sports uses OAuth 2.0 for authentication.
+        You must register your application at https://developer.yahoo.com/apps/
+      flows:
+        authorizationCode:
+          authorizationUrl: https://api.login.yahoo.com/oauth2/request_auth
+          tokenUrl: https://api.login.yahoo.com/oauth2/get_token
+          refreshUrl: https://api.login.yahoo.com/oauth2/get_token
+          scopes:
+            fspt-r: Read-only access to Fantasy Sports data
+            fspt-w: Write access to Fantasy Sports data (roster changes, transactions)
+
+  parameters:
+    GameKey:
+      name: game_key
+      in: path
+      required: true
+      description: |
+        Unique identifier for a game. Can be a sport code (nfl, mlb, nba, nhl) or 
+        numeric game ID (e.g., 406 for 2021 NFL season, 423 for 2022 NFL season)
+      schema:
+        type: string
+      example: "423"
+
+    LeagueKey:
+      name: league_key
+      in: path
+      required: true
+      description: |
+        Unique identifier for a league in format: {game_key}.l.{league_id}
+        Example: 423.l.123456
+      schema:
+        type: string
+        pattern: '^\d+\.l\.\d+$'
+      example: "423.l.123456"
+
+    TeamKey:
+      name: team_key
+      in: path
+      required: true
+      description: |
+        Unique identifier for a team in format: {game_key}.l.{league_id}.t.{team_id}
+        Example: 423.l.123456.t.1
+      schema:
+        type: string
+        pattern: '^\d+\.l\.\d+\.t\.\d+$'
+      example: "423.l.123456.t.1"
+
+    PlayerKey:
+      name: player_key
+      in: path
+      required: true
+      description: |
+        Unique identifier for a player in format: {game_key}.p.{player_id}
+        Example: 423.p.33536
+      schema:
+        type: string
+        pattern: '^\d+\.p\.\d+$'
+      example: "423.p.33536"
+
+    TransactionKey:
+      name: transaction_key
+      in: path
+      required: true
+      description: |
+        Unique identifier for a transaction in format: {game_key}.l.{league_id}.tr.{transaction_id}
+      schema:
+        type: string
+      example: "423.l.123456.tr.1"
+
+    Format:
+      name: format
+      in: query
+      description: Response format (json or xml). Default is xml.
+      schema:
+        type: string
+        enum: [json, xml]
+        default: xml
+      example: json
+
+    Week:
+      name: week
+      in: query
+      description: Week number for weekly data
+      schema:
+        type: integer
+        minimum: 1
+      example: 5
+
+    Date:
+      name: date
+      in: query
+      description: Specific date in YYYY-MM-DD format
+      schema:
+        type: string
+        format: date
+      example: "2025-10-28"
+
+  responses:
+    UnauthorizedError:
+      description: Authentication failed or missing
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+    ForbiddenError:
+      description: Access forbidden
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/ErrorResponse"
+
+  schemas:
+    Game:
+      type: object
+      description: Represents a fantasy sports game/season
+      properties:
+        game_key:
+          type: string
+          description: Unique game identifier
+          example: "423"
+        game_id:
+          type: integer
+          description: Numeric game identifier
+          example: 423
+        name:
+          type: string
+          description: Full name of the game
+          example: "Football"
+        code:
+          type: string
+          description: Sport code
+          enum: [nfl, mlb, nba, nhl, pnhl]
+          example: "nfl"
+        type:
+          type: string
+          description: Type of fantasy game
+          enum: [full, pickem-team, pickem-group, pickem-team-list]
+          example: "full"
+        url:
+          type: string
+          format: uri
+          description: URL to the game on Yahoo Fantasy
+          example: "https://football.fantasysports.yahoo.com/f1"
+        season:
+          type: integer
+          description: Year of the season
+          example: 2022
+        is_registration_over:
+          type: boolean
+          description: Whether registration period has ended
+        is_game_over:
+          type: boolean
+          description: Whether the game/season is complete
+        is_offseason:
+          type: boolean
+          description: Whether it's currently offseason
+        game_weeks:
+          type: array
+          description: Information about each week in the game
+          items:
+            type: object
+            properties:
+              week:
+                type: integer
+              start:
+                type: string
+                format: date
+              end:
+                type: string
+                format: date
+        position_types:
+          type: array
+          description: Available position types (offense, defense, etc.)
+          items:
+            type: object
+            properties:
+              type:
+                type: string
+              display_name:
+                type: string
+        roster_positions:
+          type: array
+          description: Roster position slots
+          items:
+            type: object
+            properties:
+              position:
+                type: string
+                example: "QB"
+              position_type:
+                type: string
+              count:
+                type: integer
+        stat_categories:
+          type: object
+          description: Available statistical categories
+          properties:
+            stats:
+              type: array
+              items:
+                type: object
+                properties:
+                  stat_id:
+                    type: integer
+                  name:
+                    type: string
+                  display_name:
+                    type: string
+                  sort_order:
+                    type: integer
+                  position_type:
+                    type: string
+
+    League:
+      type: object
+      description: Represents a fantasy league
+      properties:
+        league_key:
+          type: string
+          description: Unique league identifier
+          example: "423.l.123456"
+        league_id:
+          type: string
+          description: League ID component
+          example: "123456"
+        name:
+          type: string
+          description: League name
+          example: "My Fantasy League"
+        url:
+          type: string
+          format: uri
+          description: URL to the league
+        logo_url:
+          type: string
+          format: uri
+          description: League logo URL
+        password:
+          type: string
+          description: League password (if applicable)
+        draft_status:
+          type: string
+          enum: [predraft, postdraft]
+          description: Draft status
+        num_teams:
+          type: integer
+          description: Number of teams in the league
+          example: 12
+        edit_key:
+          type: string
+          description: Edit key for the current week
+        weekly_deadline:
+          type: string
+          description: Weekly roster deadline
+        league_update_timestamp:
+          type: string
+          format: date-time
+          description: Last update timestamp
+        scoring_type:
+          type: string
+          enum: [head, point, headpoint, headone, headcat]
+          description: |
+            Scoring type:
+            - head: Head-to-Head
+            - point: Points-based
+            - headpoint: Head-to-Head Points
+            - headone: Head-to-Head One Win
+            - headcat: Head-to-Head Category
+          example: "head"
+        league_type:
+          type: string
+          enum: [private, public]
+          description: League visibility
+        renew:
+          type: string
+          description: League key of the previous season (if renewed)
+        renewed:
+          type: string
+          description: League key of the next season (if renewed)
+        iris_group_chat_id:
+          type: string
+          description: Group chat ID for league communication
+        allow_add_to_dl_extra_pos:
+          type: boolean
+          description: Whether injured players can be added to DL
+        is_pro_league:
+          type: boolean
+          description: Whether this is a pro league
+        is_cash_league:
+          type: boolean
+          description: Whether this is a paid league
+        current_week:
+          type: integer
+          description: Current week number
+          example: 5
+        start_week:
+          type: integer
+          description: Starting week of the season
+          example: 1
+        start_date:
+          type: string
+          format: date
+          description: Season start date
+        end_week:
+          type: integer
+          description: Ending week of the season
+          example: 17
+        end_date:
+          type: string
+          format: date
+          description: Season end date
+        game_code:
+          type: string
+          description: Sport code
+          example: "nfl"
+        season:
+          type: integer
+          description: Season year
+          example: 2022
+        is_finished:
+          type: boolean
+          description: Whether the league has finished
+        settings:
+          $ref: "#/components/schemas/LeagueSettings"
+
+    LeagueSettings:
+      type: object
+      description: League configuration and settings
+      properties:
+        draft_type:
+          type: string
+          enum: [live, offline, auto]
+          description: Type of draft
+        is_auction_draft:
+          type: boolean
+          description: Whether draft is auction-style
+        scoring_type:
+          type: string
+          description: Scoring system type
+        uses_playoff:
+          type: boolean
+          description: Whether league has playoffs
+        has_playoff_consolation_games:
+          type: boolean
+        playoff_start_week:
+          type: integer
+        uses_playoff_reseeding:
+          type: boolean
+        uses_lock_eliminated_teams:
+          type: boolean
+        num_playoff_teams:
+          type: integer
+        num_playoff_consolation_teams:
+          type: integer
+        has_multiweek_championship:
+          type: boolean
+        waiver_type:
+          type: string
+          enum: [R, FR, W, C, FCFS]
+          description: |
+            Waiver wire type:
+            - R: Reverse order of standings
+            - FR: Free agent budget (FAB)
+            - W: Waiver only
+            - C: Continual rolling list
+            - FCFS: First come, first served
+        waiver_rule:
+          type: string
+          enum: [all, gameday, gametime]
+        uses_faab:
+          type: boolean
+          description: Whether league uses FAAB (Free Agent Acquisition Budget)
+        draft_time:
+          type: string
+          format: date-time
+        draft_pick_time:
+          type: integer
+          description: Seconds per draft pick
+        post_draft_players:
+          type: string
+          enum: [W, FA]
+          description: Player status after draft (Waivers or Free Agents)
+        max_teams:
+          type: integer
+        waiver_time:
+          type: integer
+          description: Waiver period in days
+        trade_end_date:
+          type: string
+          format: date
+        trade_ratify_type:
+          type: string
+          enum: [vote, commish]
+        trade_reject_time:
+          type: integer
+        player_pool:
+          type: string
+          enum: [ALL, NFL, AL, NL]
+        cant_cut_list:
+          type: string
+          enum: [yahoo, none]
+        roster_positions:
+          type: array
+          items:
+            type: object
+            properties:
+              position:
+                type: string
+              position_type:
+                type: string
+              count:
+                type: integer
+        stat_categories:
+          type: object
+          properties:
+            stats:
+              type: array
+              items:
+                type: object
+                properties:
+                  stat_id:
+                    type: integer
+                  enabled:
+                    type: boolean
+                  name:
+                    type: string
+                  display_name:
+                    type: string
+                  sort_order:
+                    type: integer
+                  position_type:
+                    type: string
+                  stat_position_types:
+                    type: array
+                    items:
+                      type: object
+                  is_only_display_stat:
+                    type: boolean
+                  value:
+                    type: number
+                    description: Point value for this stat
+        stat_modifiers:
+          type: object
+          description: Bonus point modifiers
+          properties:
+            stats:
+              type: array
+              items:
+                type: object
+                properties:
+                  stat_id:
+                    type: integer
+                  value:
+                    type: number
+        divisions:
+          type: array
+          items:
+            type: object
+            properties:
+              division_id:
+                type: integer
+              name:
+                type: string
+
+    Team:
+      type: object
+      description: Represents a fantasy team
+      properties:
+        team_key:
+          type: string
+          description: Unique team identifier
+          example: "423.l.123456.t.1"
+        team_id:
+          type: string
+          description: Team ID component
+          example: "1"
+        name:
+          type: string
+          description: Team name
+          example: "Team Johnson"
+        is_owned_by_current_login:
+          type: boolean
+          description: Whether the authenticated user owns this team
+        url:
+          type: string
+          format: uri
+          description: URL to the team page
+        team_logos:
+          type: array
+          items:
+            type: object
+            properties:
+              size:
+                type: string
+                enum: [small, medium, large]
+              url:
+                type: string
+                format: uri
+        waiver_priority:
+          type: integer
+          description: Current waiver priority position
+        faab_balance:
+          type: integer
+          description: Remaining FAAB budget
+        number_of_moves:
+          type: integer
+          description: Number of roster moves made
+        number_of_trades:
+          type: integer
+          description: Number of trades made
+        roster_adds:
+          type: object
+          properties:
+            coverage_type:
+              type: string
+            coverage_value:
+              type: integer
+            value:
+              type: integer
+              description: Number of adds for the period
+        clinched_playoffs:
+          type: boolean
+        league_scoring_type:
+          type: string
+        draft_position:
+          type: integer
+          description: Draft position/pick number
+        has_draft_grade:
+          type: boolean
+        draft_grade:
+          type: string
+        draft_recap_url:
+          type: string
+          format: uri
+        managers:
+          type: array
+          items:
+            $ref: "#/components/schemas/Manager"
+        team_points:
+          type: object
+          properties:
+            coverage_type:
+              type: string
+            season:
+              type: integer
+            total:
+              type: number
+              description: Total fantasy points
+        team_projected_points:
+          type: object
+          properties:
+            coverage_type:
+              type: string
+            week:
+              type: integer
+            total:
+              type: number
+              description: Total projected points
+        team_standings:
+          type: object
+          properties:
+            rank:
+              type: integer
+            playoff_seed:
+              type: integer
+            outcome_totals:
+              type: object
+              properties:
+                wins:
+                  type: integer
+                losses:
+                  type: integer
+                ties:
+                  type: integer
+                percentage:
+                  type: number
+            points_for:
+              type: number
+            points_against:
+              type: number
+
+    Manager:
+      type: object
+      description: Team manager information
+      properties:
+        manager_id:
+          type: string
+          description: Unique manager identifier
+        nickname:
+          type: string
+          description: Manager's display name
+        guid:
+          type: string
+          description: Yahoo GUID
+        is_commissioner:
+          type: boolean
+          description: Whether manager is league commissioner
+        is_current_login:
+          type: boolean
+          description: Whether this is the authenticated user
+        email:
+          type: string
+          format: email
+          description: Manager's email address
+        image_url:
+          type: string
+          format: uri
+          description: Manager's profile image
+
+    Player:
+      type: object
+      description: Represents a player in fantasy sports
+      properties:
+        player_key:
+          type: string
+          description: Unique player identifier
+          example: "423.p.33536"
+        player_id:
+          type: string
+          description: Player ID component
+          example: "33536"
+        name:
+          type: object
+          properties:
+            full:
+              type: string
+              example: "Patrick Mahomes"
+            first:
+              type: string
+              example: "Patrick"
+            last:
+              type: string
+              example: "Mahomes"
+            ascii_first:
+              type: string
+            ascii_last:
+              type: string
+        status:
+          type: string
+          description: Player injury/status
+          example: "Q"
+        status_full:
+          type: string
+          example: "Questionable"
+        injury_note:
+          type: string
+          description: Injury details
+        editorial_player_key:
+          type: string
+        editorial_team_key:
+          type: string
+        editorial_team_full_name:
+          type: string
+          example: "Kansas City Chiefs"
+        editorial_team_abbr:
+          type: string
+          example: "KC"
+        editorial_team_url:
+          type: string
+          format: uri
+        bye_weeks:
+          type: object
+          properties:
+            week:
+              type: integer
+        uniform_number:
+          type: integer
+          example: 15
+        display_position:
+          type: string
+          description: Primary display position
+          example: "QB"
+        headshot:
+          type: object
+          properties:
+            url:
+              type: string
+              format: uri
+            size:
+              type: string
+        image_url:
+          type: string
+          format: uri
+          description: Player image URL
+        is_undroppable:
+          type: boolean
+          description: Whether player is on can't cut list
+        position_type:
+          type: string
+          description: Position type (offense, defense, etc.)
+        primary_position:
+          type: string
+          example: "QB"
+        eligible_positions:
+          type: array
+          description: All eligible positions
+          items:
+            type: string
+          example: ["QB"]
+        has_player_notes:
+          type: boolean
+        player_notes_last_timestamp:
+          type: string
+          format: date-time
+        has_recent_player_notes:
+          type: boolean
+        selected_position:
+          type: object
+          properties:
+            coverage_type:
+              type: string
+            week:
+              type: integer
+            position:
+              type: string
+              description: Position player is slotted in roster
+        ownership:
+          type: object
+          properties:
+            ownership_type:
+              type: string
+              enum: [team, waivers, freeagents]
+            owner_team_key:
+              type: string
+            owner_team_name:
+              type: string
+        percent_owned:
+          type: object
+          properties:
+            coverage_type:
+              type: string
+            week:
+              type: integer
+            value:
+              type: number
+              description: Percentage owned across leagues
+              example: 99.8
+        player_points:
+          type: object
+          properties:
+            coverage_type:
+              type: string
+            week:
+              type: integer
+            total:
+              type: number
+              description: Actual fantasy points
+        player_projected_points:
+          type: object
+          properties:
+            coverage_type:
+              type: string
+            week:
+              type: integer
+            total:
+              type: number
+              description: Projected fantasy points
+        player_stats:
+          type: object
+          properties:
+            coverage_type:
+              type: string
+            week:
+              type: integer
+            stats:
+              type: array
+              items:
+                type: object
+                properties:
+                  stat_id:
+                    type: integer
+                  value:
+                    type: number
+
+    Roster:
+      type: object
+      description: Team roster for a specific time period
+      properties:
+        coverage_type:
+          type: string
+          enum: [week, date, season]
+        week:
+          type: integer
+        date:
+          type: string
+          format: date
+        is_editable:
+          type: boolean
+          description: Whether roster can be edited
+        players:
+          type: array
+          items:
+            type: object
+            properties:
+              player:
+                $ref: "#/components/schemas/Player"
+              selected_position:
+                type: object
+                properties:
+                  coverage_type:
+                    type: string
+                  week:
+                    type: integer
+                  position:
+                    type: string
+
+    Matchup:
+      type: object
+      description: Head-to-head matchup between teams
+      properties:
+        week:
+          type: integer
+          description: Week number
+        week_start:
+          type: string
+          format: date
+        week_end:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [postevent, midevent, preevent]
+        is_playoffs:
+          type: boolean
+        is_consolation:
+          type: boolean
+        is_matchup_recap_available:
+          type: boolean
+        matchup_recap_title:
+          type: string
+        matchup_recap_url:
+          type: string
+          format: uri
+        matchup_grades:
+          type: array
+          items:
+            type: object
+            properties:
+              team_key:
+                type: string
+              grade:
+                type: string
+        is_tied:
+          type: boolean
+        winner_team_key:
+          type: string
+        teams:
+          type: array
+          minItems: 2
+          maxItems: 2
+          items:
+            type: object
+            properties:
+              team:
+                $ref: "#/components/schemas/Team"
+              team_points:
+                type: object
+                properties:
+                  total:
+                    type: number
+              team_projected_points:
+                type: object
+                properties:
+                  total:
+                    type: number
+              win_probability:
+                type: number
+                description: Probability of winning (0-1)
+
+    Transaction:
+      type: object
+      description: Roster transaction (add/drop, trade, etc.)
+      properties:
+        transaction_key:
+          type: string
+          description: Unique transaction identifier
+        transaction_id:
+          type: string
+        type:
+          type: string
+          enum: [add, drop, commish, trade, waiver, pending_trade]
+          description: Transaction type
+        status:
+          type: string
+          enum: [successful, failed, pending, vote, rejected]
+        timestamp:
+          type: string
+          format: date-time
+          description: When transaction occurred/was requested
+        faab_bid:
+          type: integer
+          description: FAAB bid amount (for waiver claims)
+        tradee_team_key:
+          type: string
+          description: Other team in trade
+        tradee_team_name:
+          type: string
+        trader_team_key:
+          type: string
+        trader_team_name:
+          type: string
+        players:
+          type: array
+          items:
+            type: object
+            properties:
+              player:
+                $ref: "#/components/schemas/Player"
+              transaction_data:
+                type: object
+                properties:
+                  type:
+                    type: string
+                    enum: [add, drop]
+                  source_type:
+                    type: string
+                    enum: [freeagents, waivers, team]
+                  destination_type:
+                    type: string
+                    enum: [team, waivers, freeagents]
+                  source_team_key:
+                    type: string
+                  source_team_name:
+                    type: string
+                  destination_team_key:
+                    type: string
+                  destination_team_name:
+                    type: string
+
+    DraftResult:
+      type: object
+      description: Result of a draft pick
+      properties:
+        pick:
+          type: integer
+          description: Overall pick number
+        round:
+          type: integer
+          description: Round number
+        team_key:
+          type: string
+        player_key:
+          type: string
+        cost:
+          type: integer
+          description: Cost in auction draft
+
+    Scoreboard:
+      type: object
+      properties:
+        week:
+          type: integer
+        matchups:
+          type: array
+          items:
+            $ref: "#/components/schemas/Matchup"
+
+    Standings:
+      type: object
+      properties:
+        teams:
+          type: array
+          items:
+            $ref: "#/components/schemas/Team"
+
+    User:
+      type: object
+      description: Yahoo user with fantasy sports access
+      properties:
+        guid:
+          type: string
+          description: Yahoo GUID
+        games:
+          type: array
+          items:
+            type: object
+            properties:
+              game:
+                $ref: "#/components/schemas/Game"
+              leagues:
+                type: array
+                items:
+                  $ref: "#/components/schemas/League"
+
+    ErrorResponse:
+      type: object
+      properties:
+        error:
+          type: object
+          properties:
+            description:
+              type: string
+            detail:
+              type: string
+            code:
+              type: string
+
+paths:
+  # ============================================================
+  # GAME RESOURCES
+  # ============================================================
+
+  /games:
+    get:
+      summary: Get all games
+      description: Retrieve all available fantasy games/seasons
+      operationId: getAllGames
+      tags:
+        - Games
+      parameters:
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: List of all games
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      games:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            game:
+                              $ref: "#/components/schemas/Game"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /games;game_keys={game_keys}:
+    get:
+      summary: Get specific games
+      description: Retrieve information about one or more specific games by their keys
+      operationId: getGamesByKeys
+      tags:
+        - Games
+      parameters:
+        - name: game_keys
+          in: path
+          required: true
+          description: Comma-separated list of game keys (e.g., "nfl,423,mlb")
+          schema:
+            type: string
+          example: "423,nfl"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Requested games
+          content:
+            application/json:
+              schema:
+                type: object
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /games;game_codes={game_codes}:
+    get:
+      summary: Get games by sport codes
+      description: Retrieve games by sport codes (nfl, mlb, nba, nhl)
+      operationId: getGamesByCodes
+      tags:
+        - Games
+      parameters:
+        - name: game_codes
+          in: path
+          required: true
+          description: Comma-separated list of game codes
+          schema:
+            type: string
+          example: "nfl,mlb"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Games for specified sport codes
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /games;seasons={seasons}:
+    get:
+      summary: Get games by seasons
+      description: Retrieve games for specific seasons/years
+      operationId: getGamesBySeasons
+      tags:
+        - Games
+      parameters:
+        - name: seasons
+          in: path
+          required: true
+          description: Comma-separated list of years
+          schema:
+            type: string
+          example: "2022,2023"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Games for specified seasons
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /game/{game_key}:
+    get:
+      summary: Get game information
+      description: Retrieve detailed information about a specific game
+      operationId: getGame
+      tags:
+        - Games
+      parameters:
+        - $ref: "#/components/parameters/GameKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Game details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      game:
+                        $ref: "#/components/schemas/Game"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+
+  /game/{game_key}/leagues:
+    get:
+      summary: Get leagues for a game
+      description: Retrieve all leagues for a specific game
+      operationId: getGameLeagues
+      tags:
+        - Games
+      parameters:
+        - $ref: "#/components/parameters/GameKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Leagues in the game
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /game/{game_key}/players:
+    get:
+      summary: Get players for a game
+      description: Retrieve players in a specific game with filtering and sorting
+      operationId: getGamePlayers
+      tags:
+        - Games
+        - Players
+      parameters:
+        - $ref: "#/components/parameters/GameKey"
+        - name: position
+          in: query
+          description: Filter by position (QB, RB, WR, etc.)
+          schema:
+            type: string
+        - name: status
+          in: query
+          description: Filter by player status
+          schema:
+            type: string
+        - name: search
+          in: query
+          description: Search by player name
+          schema:
+            type: string
+        - name: sort
+          in: query
+          description: Sort field (NAME, OR - ownership %, AR - avg rank, etc.)
+          schema:
+            type: string
+        - name: start
+          in: query
+          description: Starting index for pagination (0-based)
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: count
+          in: query
+          description: Number of results to return
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 25
+            default: 25
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: List of players
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /game/{game_key}/stat_categories:
+    get:
+      summary: Get stat categories for a game
+      description: Retrieve all available statistical categories for a game
+      operationId: getGameStatCategories
+      tags:
+        - Games
+      parameters:
+        - $ref: "#/components/parameters/GameKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Stat categories
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /game/{game_key}/position_types:
+    get:
+      summary: Get position types for a game
+      description: Retrieve position types (offense, defense, etc.)
+      operationId: getGamePositionTypes
+      tags:
+        - Games
+      parameters:
+        - $ref: "#/components/parameters/GameKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Position types
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /game/{game_key}/roster_positions:
+    get:
+      summary: Get roster positions for a game
+      description: Retrieve available roster positions for a game
+      operationId: getGameRosterPositions
+      tags:
+        - Games
+      parameters:
+        - $ref: "#/components/parameters/GameKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Roster positions
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  # ============================================================
+  # USER RESOURCES
+  # ============================================================
+
+  /users;use_login=1:
+    get:
+      summary: Get current user
+      description: Retrieve information about the authenticated user
+      operationId: getCurrentUser
+      tags:
+        - Users
+      parameters:
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: User information
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      users:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            user:
+                              $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /users;use_login=1/games:
+    get:
+      summary: Get current user's games
+      description: Retrieve all games the authenticated user participates in
+      operationId: getCurrentUserGames
+      tags:
+        - Users
+      parameters:
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: User's games
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /users;use_login=1/games/leagues:
+    get:
+      summary: Get current user's leagues
+      description: Retrieve all leagues for the authenticated user across all games
+      operationId: getCurrentUserLeagues
+      tags:
+        - Users
+      parameters:
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: User's leagues across all games
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /users;use_login=1/games;game_keys={game_keys}/leagues:
+    get:
+      summary: Get current user's leagues for specific games
+      description: Retrieve leagues for the authenticated user in specific games
+      operationId: getCurrentUserLeaguesForGames
+      tags:
+        - Users
+      parameters:
+        - name: game_keys
+          in: path
+          required: true
+          description: Comma-separated list of game keys
+          schema:
+            type: string
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: User's leagues for specified games
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /users;use_login=1/games;game_keys={game_keys}/teams:
+    get:
+      summary: Get current user's teams for specific games
+      description: Retrieve teams owned by the authenticated user in specific games
+      operationId: getCurrentUserTeamsForGames
+      tags:
+        - Users
+      parameters:
+        - name: game_keys
+          in: path
+          required: true
+          description: Comma-separated list of game keys
+          schema:
+            type: string
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: User's teams for specified games
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  # ============================================================
+  # LEAGUE RESOURCES
+  # ============================================================
+
+  /leagues;league_keys={league_keys}:
+    get:
+      summary: Get multiple leagues
+      description: Retrieve information about multiple leagues by their keys
+      operationId: getLeaguesByKeys
+      tags:
+        - Leagues
+      parameters:
+        - name: league_keys
+          in: path
+          required: true
+          description: Comma-separated list of league keys
+          schema:
+            type: string
+          example: "423.l.123456,423.l.789012"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Requested leagues
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /league/{league_key}:
+    get:
+      summary: Get league information
+      description: Retrieve detailed information about a specific league
+      operationId: getLeague
+      tags:
+        - Leagues
+      parameters:
+        - $ref: "#/components/parameters/LeagueKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: League details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      league:
+                        $ref: "#/components/schemas/League"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+
+  /league/{league_key}/metadata:
+    get:
+      summary: Get league metadata
+      description: Retrieve metadata for a league (same as base league resource)
+      operationId: getLeagueMetadata
+      tags:
+        - Leagues
+      parameters:
+        - $ref: "#/components/parameters/LeagueKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: League metadata
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /league/{league_key}/settings:
+    get:
+      summary: Get league settings
+      description: Retrieve configuration and rules for a league
+      operationId: getLeagueSettings
+      tags:
+        - Leagues
+      parameters:
+        - $ref: "#/components/parameters/LeagueKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: League settings and configuration
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      league:
+                        type: object
+                        properties:
+                          league_key:
+                            type: string
+                          settings:
+                            $ref: "#/components/schemas/LeagueSettings"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /league/{league_key}/standings:
+    get:
+      summary: Get league standings
+      description: Retrieve current standings for a league
+      operationId: getLeagueStandings
+      tags:
+        - Leagues
+      parameters:
+        - $ref: "#/components/parameters/LeagueKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: League standings with team records
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      league:
+                        type: object
+                        properties:
+                          league_key:
+                            type: string
+                          standings:
+                            $ref: "#/components/schemas/Standings"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /league/{league_key}/scoreboard:
+    get:
+      summary: Get league scoreboard
+      description: Retrieve matchups and scores for a league
+      operationId: getLeagueScoreboard
+      tags:
+        - Leagues
+      parameters:
+        - $ref: "#/components/parameters/LeagueKey"
+        - name: week
+          in: query
+          description: Specific week number (omit for current week)
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: League scoreboard with matchups
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      league:
+                        type: object
+                        properties:
+                          league_key:
+                            type: string
+                          scoreboard:
+                            $ref: "#/components/schemas/Scoreboard"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /league/{league_key}/teams:
+    get:
+      summary: Get league teams
+      description: Retrieve all teams in a league
+      operationId: getLeagueTeams
+      tags:
+        - Leagues
+        - Teams
+      parameters:
+        - $ref: "#/components/parameters/LeagueKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: All teams in the league
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      league:
+                        type: object
+                        properties:
+                          league_key:
+                            type: string
+                          teams:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                team:
+                                  $ref: "#/components/schemas/Team"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /league/{league_key}/players:
+    get:
+      summary: Get league players
+      description: Retrieve players in a league with filtering and sorting options
+      operationId: getLeaguePlayers
+      tags:
+        - Leagues
+        - Players
+      parameters:
+        - $ref: "#/components/parameters/LeagueKey"
+        - name: status
+          in: query
+          description: |
+            Filter by player status:
+            - A: All players
+            - FA: Free agents
+            - W: Waivers
+            - T: Taken (rostered)
+            - K: Keepers
+          schema:
+            type: string
+            enum: [A, FA, W, T, K]
+          example: "FA"
+        - name: position
+          in: query
+          description: Filter by position (QB, RB, WR, TE, etc.)
+          schema:
+            type: string
+          example: "QB"
+        - name: search
+          in: query
+          description: Search by player name
+          schema:
+            type: string
+        - name: sort
+          in: query
+          description: |
+            Sort order:
+            - NAME: Player name
+            - OR: Ownership percentage
+            - AR: Average draft/rank
+            - PTS: Fantasy points
+            - PR: Projected rank
+          schema:
+            type: string
+          example: "OR"
+        - name: sort_type
+          in: query
+          description: Sort direction (season, date, week, lastweek, lastmonth)
+          schema:
+            type: string
+        - name: sort_season
+          in: query
+          description: Season year for sorting
+          schema:
+            type: integer
+        - name: sort_date
+          in: query
+          description: Date for sorting (YYYY-MM-DD)
+          schema:
+            type: string
+        - name: sort_week
+          in: query
+          description: Week number for sorting
+          schema:
+            type: integer
+        - name: start
+          in: query
+          description: Starting index for pagination
+          schema:
+            type: integer
+            minimum: 0
+            default: 0
+        - name: count
+          in: query
+          description: Number of results per page (max 25)
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 25
+            default: 25
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: List of players matching criteria
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /league/{league_key}/draftresults:
+    get:
+      summary: Get league draft results
+      description: Retrieve complete draft results for a league
+      operationId: getLeagueDraftResults
+      tags:
+        - Leagues
+      parameters:
+        - $ref: "#/components/parameters/LeagueKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Draft results with all picks
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      league:
+                        type: object
+                        properties:
+                          league_key:
+                            type: string
+                          draft_results:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                draft_result:
+                                  $ref: "#/components/schemas/DraftResult"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /league/{league_key}/transactions:
+    get:
+      summary: Get league transactions
+      description: Retrieve all transactions for a league
+      operationId: getLeagueTransactions
+      tags:
+        - Leagues
+        - Transactions
+      parameters:
+        - $ref: "#/components/parameters/LeagueKey"
+        - name: type
+          in: query
+          description: Filter by transaction type (add, drop, commish, trade)
+          schema:
+            type: string
+            enum: [add, drop, commish, trade, waiver]
+        - name: team_key
+          in: query
+          description: Filter by team key
+          schema:
+            type: string
+        - name: count
+          in: query
+          description: Number of transactions to return
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: League transactions
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      league:
+                        type: object
+                        properties:
+                          league_key:
+                            type: string
+                          transactions:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                transaction:
+                                  $ref: "#/components/schemas/Transaction"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  # ============================================================
+  # TEAM RESOURCES
+  # ============================================================
+
+  /teams;team_keys={team_keys}:
+    get:
+      summary: Get multiple teams
+      description: Retrieve information about multiple teams by their keys
+      operationId: getTeamsByKeys
+      tags:
+        - Teams
+      parameters:
+        - name: team_keys
+          in: path
+          required: true
+          description: Comma-separated list of team keys
+          schema:
+            type: string
+          example: "423.l.123456.t.1,423.l.123456.t.2"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Requested teams
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /team/{team_key}:
+    get:
+      summary: Get team information
+      description: Retrieve detailed information about a specific team
+      operationId: getTeam
+      tags:
+        - Teams
+      parameters:
+        - $ref: "#/components/parameters/TeamKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Team details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      team:
+                        $ref: "#/components/schemas/Team"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+
+  /team/{team_key}/metadata:
+    get:
+      summary: Get team metadata
+      description: Retrieve metadata for a team
+      operationId: getTeamMetadata
+      tags:
+        - Teams
+      parameters:
+        - $ref: "#/components/parameters/TeamKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Team metadata
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /team/{team_key}/stats:
+    get:
+      summary: Get team stats
+      description: Retrieve statistics for a team
+      operationId: getTeamStats
+      tags:
+        - Teams
+      parameters:
+        - $ref: "#/components/parameters/TeamKey"
+        - name: type
+          in: query
+          description: Stats type (week, season, date)
+          schema:
+            type: string
+            enum: [week, season, date]
+        - $ref: "#/components/parameters/Week"
+        - $ref: "#/components/parameters/Date"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Team statistics
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /team/{team_key}/standings:
+    get:
+      summary: Get team standings
+      description: Retrieve standings information for a specific team
+      operationId: getTeamStandings
+      tags:
+        - Teams
+      parameters:
+        - $ref: "#/components/parameters/TeamKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Team standings details
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /team/{team_key}/roster:
+    get:
+      summary: Get team roster
+      description: Retrieve roster for a team with player details and positions
+      operationId: getTeamRoster
+      tags:
+        - Teams
+      parameters:
+        - $ref: "#/components/parameters/TeamKey"
+        - name: week
+          in: query
+          description: Week number for roster
+          schema:
+            type: integer
+        - name: date
+          in: query
+          description: Specific date for roster (YYYY-MM-DD)
+          schema:
+            type: string
+            format: date
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Team roster with players
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      team:
+                        type: object
+                        properties:
+                          team_key:
+                            type: string
+                          roster:
+                            $ref: "#/components/schemas/Roster"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /team/{team_key}/matchups:
+    get:
+      summary: Get team matchups
+      description: Retrieve matchup schedule for a team
+      operationId: getTeamMatchups
+      tags:
+        - Teams
+      parameters:
+        - $ref: "#/components/parameters/TeamKey"
+        - name: weeks
+          in: query
+          description: Comma-separated list of week numbers (e.g., "1,2,3")
+          schema:
+            type: string
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Team matchups
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      team:
+                        type: object
+                        properties:
+                          team_key:
+                            type: string
+                          matchups:
+                            type: array
+                            items:
+                              type: object
+                              properties:
+                                matchup:
+                                  $ref: "#/components/schemas/Matchup"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /team/{team_key}/draftresults:
+    get:
+      summary: Get team draft results
+      description: Retrieve draft picks made by a specific team
+      operationId: getTeamDraftResults
+      tags:
+        - Teams
+      parameters:
+        - $ref: "#/components/parameters/TeamKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Team's draft picks
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  # ============================================================
+  # PLAYER RESOURCES
+  # ============================================================
+
+  /players;player_keys={player_keys}:
+    get:
+      summary: Get multiple players
+      description: Retrieve information about multiple players by their keys
+      operationId: getPlayersByKeys
+      tags:
+        - Players
+      parameters:
+        - name: player_keys
+          in: path
+          required: true
+          description: Comma-separated list of player keys
+          schema:
+            type: string
+          example: "423.p.33536,423.p.31866"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Requested players
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /player/{player_key}:
+    get:
+      summary: Get player information
+      description: Retrieve detailed information about a specific player
+      operationId: getPlayer
+      tags:
+        - Players
+      parameters:
+        - $ref: "#/components/parameters/PlayerKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Player details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      player:
+                        $ref: "#/components/schemas/Player"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+
+  /player/{player_key}/metadata:
+    get:
+      summary: Get player metadata
+      description: Retrieve metadata for a player
+      operationId: getPlayerMetadata
+      tags:
+        - Players
+      parameters:
+        - $ref: "#/components/parameters/PlayerKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Player metadata
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /player/{player_key}/stats:
+    get:
+      summary: Get player stats
+      description: Retrieve statistics for a player with optional projections
+      operationId: getPlayerStats
+      tags:
+        - Players
+        - Projections
+      parameters:
+        - $ref: "#/components/parameters/PlayerKey"
+        - name: type
+          in: query
+          description: Stats type (week, season, date, lastweek, lastmonth)
+          schema:
+            type: string
+            enum: [week, season, date, lastweek, lastmonth]
+        - name: week
+          in: query
+          description: Week number (when type=week)
+          schema:
+            type: integer
+        - name: date
+          in: query
+          description: Specific date (when type=date)
+          schema:
+            type: string
+            format: date
+        - name: season
+          in: query
+          description: Season year (when type=season)
+          schema:
+            type: integer
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Player statistics and projections
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      player:
+                        type: object
+                        properties:
+                          player_key:
+                            type: string
+                          player_points:
+                            type: object
+                            properties:
+                              total:
+                                type: number
+                          player_projected_points:
+                            type: object
+                            properties:
+                              total:
+                                type: number
+                          player_stats:
+                            type: object
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /player/{player_key}/ownership:
+    get:
+      summary: Get player ownership
+      description: Retrieve ownership information for a player in the user's leagues
+      operationId: getPlayerOwnership
+      tags:
+        - Players
+      parameters:
+        - $ref: "#/components/parameters/PlayerKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Player ownership details
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /player/{player_key}/percent_owned:
+    get:
+      summary: Get player ownership percentage
+      description: Retrieve the percentage of leagues where a player is owned
+      operationId: getPlayerPercentOwned
+      tags:
+        - Players
+      parameters:
+        - $ref: "#/components/parameters/PlayerKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Player ownership percentage
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /player/{player_key}/draft_analysis:
+    get:
+      summary: Get player draft analysis
+      description: Retrieve draft analysis and average draft position for a player
+      operationId: getPlayerDraftAnalysis
+      tags:
+        - Players
+      parameters:
+        - $ref: "#/components/parameters/PlayerKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Player draft analysis
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  # ============================================================
+  # TRANSACTION RESOURCES
+  # ============================================================
+
+  /transactions;transaction_keys={transaction_keys}:
+    get:
+      summary: Get multiple transactions
+      description: Retrieve information about multiple transactions by their keys
+      operationId: getTransactionsByKeys
+      tags:
+        - Transactions
+      parameters:
+        - name: transaction_keys
+          in: path
+          required: true
+          description: Comma-separated list of transaction keys
+          schema:
+            type: string
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Requested transactions
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /transaction/{transaction_key}:
+    get:
+      summary: Get transaction information
+      description: Retrieve detailed information about a specific transaction
+      operationId: getTransaction
+      tags:
+        - Transactions
+      parameters:
+        - $ref: "#/components/parameters/TransactionKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Transaction details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  fantasy_content:
+                    type: object
+                    properties:
+                      transaction:
+                        $ref: "#/components/schemas/Transaction"
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+        "404":
+          $ref: "#/components/responses/NotFoundError"
+
+  /transaction/{transaction_key}/metadata:
+    get:
+      summary: Get transaction metadata
+      description: Retrieve metadata for a transaction
+      operationId: getTransactionMetadata
+      tags:
+        - Transactions
+      parameters:
+        - $ref: "#/components/parameters/TransactionKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Transaction metadata
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+  /transaction/{transaction_key}/players:
+    get:
+      summary: Get transaction players
+      description: Retrieve players involved in a transaction
+      operationId: getTransactionPlayers
+      tags:
+        - Transactions
+      parameters:
+        - $ref: "#/components/parameters/TransactionKey"
+        - $ref: "#/components/parameters/Format"
+      responses:
+        "200":
+          description: Players in the transaction
+        "401":
+          $ref: "#/components/responses/UnauthorizedError"
+
+tags:
+  - name: Games
+    description: Operations related to fantasy games and seasons
+  - name: Users
+    description: Operations related to authenticated users
+  - name: Leagues
+    description: Operations related to fantasy leagues
+  - name: Teams
+    description: Operations related to fantasy teams
+  - name: Players
+    description: Operations related to players
+  - name: Transactions
+    description: Operations related to roster transactions
+  - name: Projections
+    description: Operations related to projected fantasy points
+
+externalDocs:
+  description: Yahoo Fantasy Sports API Official Documentation
+  url: https://developer.yahoo.com/fantasysports/guide/

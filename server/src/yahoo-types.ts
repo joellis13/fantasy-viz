@@ -172,6 +172,112 @@ export interface YahooTeamStandings {
 }
 
 /**
+ * Player-related types for stats and projections
+ */
+
+export interface YahooPlayerName {
+  full: string;
+  first: string;
+  last: string;
+  ascii_first?: string;
+  ascii_last?: string;
+}
+
+export interface YahooPlayerPoints {
+  coverage_type: string;
+  week?: number;
+  season?: string;
+  total: string | number;
+}
+
+export interface YahooPlayerStat {
+  stat_id: number;
+  value: string | number;
+}
+
+export interface YahooPlayerStats {
+  coverage_type: string;
+  week?: number;
+  season?: string;
+  stats?: YahooPlayerStat[];
+}
+
+export interface YahooPlayerInfo {
+  player_key: string;
+  player_id: string;
+  name: YahooPlayerName;
+  status?: string;
+  status_full?: string;
+  editorial_team_abbr?: string;
+  display_position?: string;
+  position_type?: string;
+  primary_position?: string;
+  eligible_positions?: string[];
+  selected_position?: {
+    coverage_type: string;
+    week?: number;
+    position: string;
+  };
+  bye_weeks?: {
+    week: string | number;
+  };
+  image_url?: string;
+  is_undroppable?: boolean;
+  player_points?: YahooPlayerPoints;
+  player_projected_points?: YahooPlayerPoints;
+  player_stats?: YahooPlayerStats;
+}
+
+/**
+ * Response type for team roster endpoint
+ * /team/{team_key}/roster?week={week}
+ */
+export interface YahooRosterPlayer {
+  player: [
+    YahooPlayerInfo[],
+    YahooPlayerPoints?,
+    YahooPlayerPoints?,
+    YahooPlayerStats?
+  ];
+}
+
+export interface YahooRoster {
+  coverage_type: string;
+  week: number;
+  is_editable: number;
+  players: {
+    count: number;
+    [key: string]: YahooRosterPlayer | number;
+  };
+}
+
+export interface YahooTeamRosterWrapper {
+  team: [
+    YahooTeamInfo[],
+    {
+      roster: YahooRoster;
+    }
+  ];
+}
+
+export type TeamRosterResponse = YahooFantasyResponse<{
+  team: [
+    YahooTeamInfo[],
+    {
+      roster: YahooRoster;
+    }
+  ];
+}>;
+
+/**
+ * Response type for player stats endpoint
+ * /player/{player_key}/stats?type=week&week={week}
+ */
+export type PlayerStatsResponse = YahooFantasyResponse<{
+  player: [YahooPlayerInfo[]];
+}>;
+
+/**
  * Normalized types for internal use
  */
 export interface NormalizedLeague {
@@ -195,4 +301,33 @@ export interface WeeklyTeamScore {
   week: number;
   teamName: string;
   score: number;
+}
+
+/**
+ * Normalized player comparison data
+ */
+export interface PlayerWeeklyComparison {
+  week: number;
+  projectedPoints: number;
+  actualPoints: number;
+  difference: number;
+  percentDifference: number;
+}
+
+export interface NormalizedPlayerComparison {
+  playerKey: string;
+  playerId: string;
+  name: string;
+  position: string;
+  team: string;
+  weeklyData: PlayerWeeklyComparison[];
+  summary: {
+    totalProjected: number;
+    totalActual: number;
+    totalDifference: number;
+    averageProjected: number;
+    averageActual: number;
+    weeksPlayed: number;
+    accuracyRate: number; // Percentage of weeks where projection was within 20% of actual
+  };
 }
