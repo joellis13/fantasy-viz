@@ -5,8 +5,7 @@ import LineChartVisx from "./components/LineChartVisx";
 type Point = { week: number; teamName: string; score: number };
 
 export default function App() {
-  const [leagueKey, setLeagueKey] = useState<string>(""
-  );
+  const [leagueKey, setLeagueKey] = useState<string>("");
   const [data, setData] = useState<Point[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -17,11 +16,15 @@ export default function App() {
     }
     setLoading(true);
     try {
-      const res = await axios.get(`/api/league/${encodeURIComponent(leagueKey)}`);
+      const res = await axios.get(
+        `/api/league/${encodeURIComponent(leagueKey)}`
+      );
       setData(res.data.points || []);
     } catch (err: any) {
       console.error(err);
-      alert(err?.response?.data?.error || err.message || "Failed to fetch league");
+      alert(
+        err?.response?.data?.error || err.message || "Failed to fetch league"
+      );
     } finally {
       setLoading(false);
     }
@@ -35,7 +38,8 @@ export default function App() {
     <div style={{ padding: 20 }}>
       <h1>Fantasy Viz (POC)</h1>
       <p>
-        <a href="/auth/yahoo/login">Connect Yahoo Account</a> — backend handles OAuth
+        <a href="/auth/yahoo/login">Connect Yahoo Account</a> — backend handles
+        OAuth (nfl.l.329011)
       </p>
       <div style={{ marginTop: 12 }}>
         <input
@@ -44,7 +48,11 @@ export default function App() {
           onChange={(e) => setLeagueKey(e.target.value)}
           style={{ padding: 8, width: 300 }}
         />
-        <button onClick={fetchLeague} style={{ marginLeft: 8 }} disabled={loading}>
+        <button
+          onClick={fetchLeague}
+          style={{ marginLeft: 8 }}
+          disabled={loading}
+        >
           {loading ? "Loading..." : "Load League"}
         </button>
       </div>
