@@ -1,18 +1,58 @@
 /**
  * TypeScript interfaces for Yahoo Fantasy Sports API responses
  * Based on the league standings endpoint structure
+ *
+ * Yahoo API Structure:
+ * All responses are wrapped in a `fantasy_content` object that contains:
+ * - Common metadata (time, copyright, etc.)
+ * - A single resource type (league, team, player, etc.)
+ * - Resources can include sub-resources as additional array elements
  */
 
-export interface YahooFantasyResponse {
-  fantasy_content: {
-    "xml:lang": string;
-    "yahoo:uri": string;
-    league: [YahooLeagueInfo, YahooStandingsWrapper];
-    time: string;
-    copyright: string;
-    refresh_rate: string;
-  };
+/**
+ * Base fantasy_content wrapper that contains metadata common to all responses
+ */
+export interface YahooFantasyContentBase {
+  "xml:lang": string;
+  "yahoo:uri": string;
+  time: string;
+  copyright: string;
+  refresh_rate: string;
 }
+
+/**
+ * Generic Yahoo Fantasy API response wrapper
+ * All API responses follow this pattern with different resource types
+ */
+export interface YahooFantasyResponse<T> {
+  fantasy_content: YahooFantasyContentBase & T;
+}
+
+/**
+ * Type helper for resources that include sub-resources
+ * Yahoo returns these as arrays where:
+ * - First element(s): Resource metadata
+ * - Last element(s): Sub-resource data
+ */
+export type YahooResourceWithSubResources<TMetadata, TSubResources> = [
+  TMetadata,
+  TSubResources
+];
+
+/**
+ * Type for the league array which contains metadata and sub-resources
+ * Yahoo returns this as an array where elements can be:
+ * - League metadata objects (with league_id)
+ * - Sub-resource objects (with standings, teams, etc.)
+ */
+export type YahooLeagueArray = Array<YahooLeagueInfo | YahooStandingsWrapper>;
+
+/**
+ * Specific response type for league standings endpoint
+ */
+export type LeagueStandingsResponse = YahooFantasyResponse<{
+  league: YahooResourceWithSubResources<YahooLeagueInfo, YahooStandingsWrapper>;
+}>;
 
 export interface YahooLeagueInfo {
   league_key: string;
@@ -48,13 +88,19 @@ export interface YahooLeagueInfo {
   season: string;
 }
 
+/**
+ * Teams data structure from Yahoo API
+ * Keys are string indices ("0", "1", "2", etc.) or "count"
+ */
+export interface YahooTeamsData {
+  [index: string]: YahooTeamWrapper | number;
+  count: number;
+}
+
 export interface YahooStandingsWrapper {
   standings: [
     {
-      teams: {
-        [index: string]: YahooTeamWrapper | number;
-        count: number;
-      };
+      teams: YahooTeamsData;
     }
   ];
 }

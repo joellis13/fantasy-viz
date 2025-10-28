@@ -1,8 +1,9 @@
 import React from "react";
 import { Group } from "@visx/group";
-import { scaleLinear, scalePoint } from "@visx/scale";
+import { scaleLinear, scalePoint, scaleOrdinal } from "@visx/scale";
 import { LinePath } from "@visx/shape";
 import { AxisBottom, AxisLeft } from "@visx/axis";
+import { LegendOrdinal } from "@visx/legend";
 
 type Point = { week: number; teamName: string; score: number };
 
@@ -14,14 +15,16 @@ export default function LineChartVisx({ data }: Props) {
   }
 
   const teams = Array.from(new Set(data.map((d) => d.teamName)));
-  const weeks = Array.from(new Set(data.map((d) => d.week))).sort((a, b) => a - b);
+  const weeks = Array.from(new Set(data.map((d) => d.week))).sort(
+    (a, b) => a - b
+  );
 
   const series = teams.map((team) => ({
     team,
     points: weeks.map((w) => {
       const p = data.find((d) => d.week === w && d.teamName === team);
       return { week: w, score: p ? p.score : null };
-    })
+    }),
   }));
 
   const width = 800;
@@ -30,7 +33,7 @@ export default function LineChartVisx({ data }: Props) {
 
   const xScale = scalePoint<number>({
     domain: weeks,
-    range: [margin.left, width - margin.right]
+    range: [margin.left, width - margin.right],
   });
 
   const allScores = data.map((d) => d.score);
@@ -40,10 +43,22 @@ export default function LineChartVisx({ data }: Props) {
   const yScale = scaleLinear<number>({
     domain: [yMin, yMax],
     range: [height - margin.bottom, margin.top],
-    nice: true
+    nice: true,
   });
 
-  const colors = ["#1f77b4", "#ff7f0e", "#2ca02c", "#d62728", "#9467bd", "#8c564b"];
+  const colors = [
+    "#1f77b4",
+    "#ff7f0e",
+    "#2ca02c",
+    "#d62728",
+    "#9467bd",
+    "#8c564b",
+  ];
+
+  const colorScale = scaleOrdinal<string, string>({
+    domain: teams,
+    range: colors,
+  });
 
   return (
     <div style={{ width: "100%", overflow: "auto" }}>
@@ -55,20 +70,25 @@ export default function LineChartVisx({ data }: Props) {
           {series.map((s, i) => (
             <LinePath
               key={s.team}
-              data={s.points.filter((p) => p.score !== null) as { week: number; score: number }[]}
+              data={
+                s.points.filter((p) => p.score !== null) as {
+                  week: number;
+                  score: number;
+                }[]
+              }
               x={(d) => xScale(d.week) || 0}
               y={(d) => yScale(d.score)}
-              stroke={colors[i % colors.length]}
+              stroke={colorScale(s.team)}
               strokeWidth={2}
             />
           ))}
         </Group>
       </svg>
-      <div style={{ marginTop: 8 }}>
-        <strong>Legend:</strong> {teams.map((t, i) => (
-          ` ${t}`
-        ))}
-      </div>
+      <LegendOrdinal
+        scale={colorScale}
+        direction="row"
+        labelMargin="0 15px 0 0"
+      />
     </div>
   );
 }
