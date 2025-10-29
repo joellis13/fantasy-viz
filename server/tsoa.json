@@ -1,0 +1,30 @@
+{
+  "entryFile": "src/index.ts",
+  "noImplicitAdditionalProperties": "throw-on-extras",
+  "controllerPathGlobs": ["src/controllers/**/*Controller.ts"],
+  "spec": {
+    "outputDirectory": "src",
+    "specVersion": 3,
+    "specFileBaseName": "swagger",
+    "info": {
+      "title": "Fantasy Viz API",
+      "version": "1.0.0",
+      "description": "API for Fantasy Viz application that provides authenticated access to Yahoo Fantasy Sports data"
+    },
+    "servers": [
+      {
+        "url": "http://localhost:5000",
+        "description": "Local development server (HTTP)"
+      },
+      {
+        "url": "https://localhost:5000",
+        "description": "Local development server (HTTPS)"
+      }
+    ]
+  },
+  "routes": {
+    "routesDir": "src",
+    "middleware": "express",
+    "authenticationModule": "./src/authentication.ts"
+  }
+}
