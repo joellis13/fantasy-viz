@@ -17,17 +17,32 @@ export class FantasyService {
 
     console.log("Fetching league from Yahoo API:\n", yahooUrl);
 
-    const resp = await axios.get(yahooUrl, {
-      headers: {
-        Authorization: `Bearer ${accessToken}`,
-      },
-    });
+    try {
+      const resp = await axios.get(yahooUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        timeout: 10000, // 10 second timeout
+      });
 
-    console.log("Raw league data:", JSON.stringify(resp.data, null, 2));
-    const normalized = normalizeLeague(resp.data);
+      console.log("Raw league data received, normalizing...");
+      const normalized = normalizeLeague(resp.data);
+      console.log("League data normalized successfully");
 
-    // Convert to API response format
-    return this.convertLeagueResponse(normalized, leagueKey);
+      // Convert to API response format
+      return this.convertLeagueResponse(normalized, leagueKey);
+    } catch (err: any) {
+      if (err.code === "ECONNABORTED") {
+        throw new Error("Request to Yahoo API timed out");
+      }
+      if (err.response?.status === 404) {
+        throw new Error("League not found. Check your league key.");
+      }
+      if (err.response?.status === 401) {
+        throw new Error("Not authorized. Please reconnect with Yahoo.");
+      }
+      throw new Error(`Failed to fetch league: ${err.message}`);
+    }
   }
 
   /**

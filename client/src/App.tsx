@@ -106,15 +106,18 @@ export default function App() {
             league.
           </p>
           <div style={{ marginTop: 12 }}>
-            <input
-              value={leagueKey}
-              placeholder="leagueKey e.g. nfl.l.12345"
-              onChange={(e) => setLeagueKey(e.target.value)}
-              style={{ padding: 8, width: 300 }}
-            />
+            <label style={{ display: "block", marginBottom: 8 }}>
+              <strong>League Key:</strong>
+              <input
+                value={leagueKey}
+                placeholder="e.g., 461.l.329011"
+                onChange={(e) => setLeagueKey(e.target.value)}
+                style={{ padding: 8, width: 300, marginLeft: 8 }}
+              />
+            </label>
             <button
               onClick={fetchLeague}
-              style={{ marginLeft: 8, padding: "8px 16px" }}
+              style={{ marginTop: 8, padding: "8px 16px" }}
               disabled={loading}
             >
               {loading ? "Loading..." : "Load League"}

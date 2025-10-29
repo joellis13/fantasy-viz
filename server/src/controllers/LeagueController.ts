@@ -39,7 +39,9 @@ export class LeagueController extends Controller {
   @Get("{leagueKey}")
   @Security("cookieAuth")
   @SuccessResponse("200", "Successfully retrieved league data")
+  @Response<ErrorResponse>("400", "Invalid league key")
   @Response<ErrorResponse>("401", "Not authenticated")
+  @Response<ErrorResponse>("404", "League not found")
   @Response<ErrorResponse>("500", "Failed to fetch league data")
   public async getLeague(
     @Path() leagueKey: string,
@@ -60,12 +62,20 @@ export class LeagueController extends Controller {
     try {
       return await this.fantasyService.getLeague(leagueKey, token.access_token);
     } catch (err: any) {
-      console.error(
-        "Error fetching league:",
-        err.response?.data || err.message
-      );
-      this.setStatus(500);
-      throw new Error("Failed to fetch league data: " + err.message);
+      console.error("Error fetching league:", err.message);
+
+      // Set appropriate status codes
+      if (err.message.includes("not found") || err.message.includes("404")) {
+        this.setStatus(404);
+      } else if (err.message.includes("timeout")) {
+        this.setStatus(504); // Gateway timeout
+      } else if (err.message.includes("Not authorized")) {
+        this.setStatus(401);
+      } else {
+        this.setStatus(500);
+      }
+
+      throw new Error(err.message);
     }
   }
 }
