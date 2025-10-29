@@ -14,11 +14,18 @@ export interface TeamStanding {
   pointsAgainst: number;
 }
 
+export interface WeeklyTeamScore {
+  week: number;
+  teamName: string;
+  score: number;
+}
+
 export interface LeagueResponse {
   leagueKey: string;
   name: string;
   season: number;
   teams: TeamStanding[];
+  points: WeeklyTeamScore[];
 }
 
 export interface WeeklyPlayerData {

@@ -111,6 +111,7 @@ export class FantasyService {
         pointsFor: team.seasonTotal,
         pointsAgainst: 0, // Not available in current normalized data
       })),
+      points: normalized.points || [], // Include weekly scores for chart
     };
   }
 
