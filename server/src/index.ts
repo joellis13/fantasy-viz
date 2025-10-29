@@ -8,7 +8,9 @@ import cookieSession from "cookie-session";
 import dotenv from "dotenv";
 import axios from "axios";
 import qs from "qs";
-import { normalizeLeague, normalizePlayerComparison } from "./parsers";
+import swaggerUi from "swagger-ui-express";
+import { RegisterRoutes } from "./routes";
+import { setTokenForUserId } from "./controllers/LeagueController";
 
 dotenv.config();
 
@@ -42,8 +44,32 @@ app.use(
   })
 );
 
+// Swagger API Documentation - using tsoa-generated swagger.json
+try {
+  const swaggerDocument = JSON.parse(
+    fs.readFileSync(path.join(__dirname, "swagger.json"), "utf8")
+  );
+
+  app.use(
+    "/api-docs",
+    swaggerUi.serve,
+    swaggerUi.setup(swaggerDocument, {
+      customSiteTitle: "Fantasy Viz API Documentation",
+      customCss: ".swagger-ui .topbar { display: none }",
+    })
+  );
+
+  console.log("Swagger UI available at /api-docs");
+} catch (err) {
+  console.warn("Failed to load Swagger documentation:", err);
+}
+
+// Register tsoa-generated routes
+RegisterRoutes(app);
+
 // Helper token store (POC). Replace with DB in production.
-const tokenStore = new Map<string, any>();
+// Moved to shared location for controllers
+// const tokenStore = new Map<string, any>();
 
 function buildYahooAuthUrl(state: string) {
   const authUrl = "https://api.login.yahoo.com/oauth2/request_auth";
@@ -91,150 +117,12 @@ app.get("/auth/yahoo/callback", async (req, res) => {
     });
     const tokens = tokenRes.data;
     const userId = `user-${Math.random().toString(36).slice(2)}`;
-    tokenStore.set(userId, tokens);
+    setTokenForUserId(userId, tokens);
     req.session!.userId = userId;
     res.redirect(`${FRONTEND_URL}`);
   } catch (err: any) {
     console.error("Token exchange error:", err.response?.data || err.message);
     res.status(500).send("OAuth token exchange failed");
-  }
-});
-
-function getTokenForReq(req: express.Request) {
-  const uid = req.session!.userId;
-  if (!uid) return null;
-  return tokenStore.get(uid) || null;
-}
-
-app.get("/api/league/:leagueKey", async (req, res) => {
-  const token = getTokenForReq(req);
-  if (!token) return res.status(401).json({ error: "not authenticated" });
-
-  const leagueKey = req.params.leagueKey;
-  try {
-    const yahooUrl = `https://fantasysports.yahooapis.com/fantasy/v2/league/${encodeURIComponent(
-      leagueKey
-    )}/standings?format=json`;
-    console.log("Fetching league from Yahoo API:\n", yahooUrl);
-    const resp = await axios.get(yahooUrl, {
-      headers: {
-        Authorization: `Bearer ${token.access_token}`,
-      },
-    });
-    console.log("Raw league data:", JSON.stringify(resp.data, null, 2));
-    const normalized = normalizeLeague(resp.data);
-    res.json(normalized);
-  } catch (err: any) {
-    console.error("Error fetching league:", err.response?.data || err.message);
-    res
-      .status(500)
-      .json({ error: "failed to fetch league", details: err.message });
-  }
-});
-
-/**
- * Get player comparison data for a team's roster across all weeks
- * GET /api/team/:teamKey/player-comparison?startWeek=1&endWeek=17
- *
- * This endpoint fetches roster data for each week and compiles projected vs actual points
- * for all players on the team throughout the season, enabling trend analysis.
- */
-app.get("/api/team/:teamKey/player-comparison", async (req, res) => {
-  const token = getTokenForReq(req);
-  if (!token) return res.status(401).json({ error: "not authenticated" });
-
-  const teamKey = req.params.teamKey;
-  const startWeek = parseInt(String(req.query.startWeek || "1"), 10);
-  const endWeek = parseInt(String(req.query.endWeek || "17"), 10);
-
-  // Validate week range
-  if (
-    isNaN(startWeek) ||
-    isNaN(endWeek) ||
-    startWeek < 1 ||
-    endWeek > 18 ||
-    startWeek > endWeek
-  ) {
-    return res.status(400).json({
-      error: "Invalid week range",
-      details:
-        "startWeek and endWeek must be between 1-18 and startWeek <= endWeek",
-    });
-  }
-
-  try {
-    console.log(
-      `Fetching player comparison for team ${teamKey}, weeks ${startWeek}-${endWeek}`
-    );
-
-    // Fetch roster data for each week in parallel
-    const weeklyPromises: Promise<{ week: number; data: any }>[] = [];
-
-    for (let week = startWeek; week <= endWeek; week++) {
-      const yahooUrl = `https://fantasysports.yahooapis.com/fantasy/v2/team/${encodeURIComponent(
-        teamKey
-      )}/roster;week=${week}?format=json`;
-
-      const promise = axios
-        .get(yahooUrl, {
-          headers: {
-            Authorization: `Bearer ${token.access_token}`,
-          },
-        })
-        .then((resp) => ({ week, data: resp.data }))
-        .catch((err) => {
-          console.warn(`Failed to fetch week ${week}:`, err.message);
-          return { week, data: null };
-        });
-
-      weeklyPromises.push(promise);
-    }
-
-    // Wait for all requests to complete
-    const weeklyResponses = await Promise.all(weeklyPromises);
-
-    // Filter out failed requests
-    const validResponses = weeklyResponses.filter((r) => r.data !== null);
-
-    if (validResponses.length === 0) {
-      return res.status(500).json({
-        error: "Failed to fetch any roster data",
-        details: "All weekly roster requests failed",
-      });
-    }
-
-    console.log(
-      `Successfully fetched ${validResponses.length} weeks of roster data`
-    );
-
-    // Parse and normalize the data
-    const playerComparisons = normalizePlayerComparison(validResponses);
-
-    res.json({
-      teamKey,
-      weekRange: { start: startWeek, end: endWeek },
-      weeksRetrieved: validResponses.length,
-      players: playerComparisons,
-      summary: {
-        totalPlayers: playerComparisons.length,
-        averageAccuracy:
-          playerComparisons.length > 0
-            ? playerComparisons.reduce(
-                (sum, p) => sum + p.summary.accuracyRate,
-                0
-              ) / playerComparisons.length
-            : 0,
-      },
-    });
-  } catch (err: any) {
-    console.error(
-      "Error fetching player comparison:",
-      err.response?.data || err.message
-    );
-    res.status(500).json({
-      error: "failed to fetch player comparison",
-      details: err.message,
-    });
   }
 });
 
