@@ -3,3 +3,7 @@
 .env
 *.log
 /server/certs/*.pem
+
+# tsoa generated files
+/server/src/routes.ts
+/server/src/swagger.json
