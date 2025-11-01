@@ -11,22 +11,58 @@ export class FantasyService {
     leagueKey: string,
     accessToken: string
   ): Promise<LeagueResponse> {
-    const yahooUrl = `https://fantasysports.yahooapis.com/fantasy/v2/league/${encodeURIComponent(
-      leagueKey
-    )}/standings?format=json`;
-
-    console.log("Fetching league from Yahoo API:\n", yahooUrl);
+    console.log("Fetching league from Yahoo API");
 
     try {
-      const resp = await axios.get(yahooUrl, {
+      // Fetch standings
+      const standingsUrl = `https://fantasysports.yahooapis.com/fantasy/v2/league/${encodeURIComponent(
+        leagueKey
+      )}/standings?format=json`;
+
+      console.log("Fetching standings:", standingsUrl);
+      const standingsResp = await axios.get(standingsUrl, {
         headers: {
           Authorization: `Bearer ${accessToken}`,
         },
-        timeout: 10000, // 10 second timeout
+        timeout: 10000,
       });
 
+      // Fetch scoreboard data week by week (Yahoo doesn't support week ranges)
+      const allScoreboardData: any[] = [];
+
+      try {
+        // Fetch current week from league info, default to 8
+        const currentWeek = 8; // Could extract this from standingsResp if needed
+        const weeksToFetch = Array.from(
+          { length: currentWeek },
+          (_, i) => i + 1
+        );
+
+        for (const week of weeksToFetch) {
+          const scoreboardUrl = `https://fantasysports.yahooapis.com/fantasy/v2/league/${encodeURIComponent(
+            leagueKey
+          )}/scoreboard;week=${week}?format=json`;
+
+          const weekResp = await axios.get(scoreboardUrl, {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+            },
+            timeout: 10000,
+          });
+
+          allScoreboardData.push(weekResp.data);
+        }
+
+        console.log(
+          `Fetched scoreboard data for weeks 1-${allScoreboardData.length}`
+        );
+      } catch (scoreboardErr: any) {
+        console.warn("Failed to fetch scoreboard data:", scoreboardErr.message);
+        console.warn("Will use synthetic scores as fallback");
+      }
+
       console.log("Raw league data received, normalizing...");
-      const normalized = normalizeLeague(resp.data);
+      const normalized = normalizeLeague(standingsResp.data, allScoreboardData);
       console.log("League data normalized successfully");
 
       // Convert to API response format
@@ -42,6 +78,44 @@ export class FantasyService {
         throw new Error("Not authorized. Please reconnect with Yahoo.");
       }
       throw new Error(`Failed to fetch league: ${err.message}`);
+    }
+  }
+
+  /**
+   * Fetch team roster for a specific week
+   */
+  async getTeamRoster(
+    teamKey: string,
+    accessToken: string,
+    week?: number
+  ): Promise<any> {
+    const weekParam = week ? `;week=${week}` : "";
+    const yahooUrl = `https://fantasysports.yahooapis.com/fantasy/v2/team/${encodeURIComponent(
+      teamKey
+    )}/roster${weekParam}?format=json`;
+
+    console.log("Fetching roster from Yahoo API:", yahooUrl);
+
+    try {
+      const resp = await axios.get(yahooUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+        timeout: 10000,
+      });
+
+      return resp.data;
+    } catch (err: any) {
+      if (err.code === "ECONNABORTED") {
+        throw new Error("Request to Yahoo API timed out");
+      }
+      if (err.response?.status === 404) {
+        throw new Error("Team not found. Check your team key.");
+      }
+      if (err.response?.status === 401) {
+        throw new Error("Not authorized. Please reconnect with Yahoo.");
+      }
+      throw new Error(`Failed to fetch roster: ${err.message}`);
     }
   }
 
@@ -62,9 +136,11 @@ export class FantasyService {
     const weeklyPromises: Promise<{ week: number; data: any }>[] = [];
 
     for (let week = startWeek; week <= endWeek; week++) {
+      // Get roster with stats - Yahoo API doesn't consistently provide projected points
+      // in the roster endpoint, so projectedPoints will be 0 for most cases
       const yahooUrl = `https://fantasysports.yahooapis.com/fantasy/v2/team/${encodeURIComponent(
         teamKey
-      )}/roster;week=${week}?format=json`;
+      )}/roster;week=${week}/players/stats?format=json`;
 
       const promise = axios
         .get(yahooUrl, {
@@ -116,7 +192,7 @@ export class FantasyService {
       name: normalized.name,
       season: new Date().getFullYear(), // You may want to extract this from the league data
       teams: normalized.teams.map((team) => ({
-        teamKey: team.id,
+        teamKey: team.teamKey,
         teamName: team.name,
         managerName: "", // Not available in current normalized data
         rank: team.rank,
@@ -143,7 +219,7 @@ export class FantasyService {
       weeksRetrieved,
       players: playerComparisons.map((player) => ({
         playerKey: player.playerKey,
-        playerName: player.name,
+        name: player.name,
         position: player.position,
         team: player.team,
         weeklyData: player.weeklyData.map((week) => ({
@@ -154,9 +230,13 @@ export class FantasyService {
           status: "", // You may want to add status to the parser
         })),
         summary: {
-          totalWeeks: player.summary.weeksPlayed,
-          avgProjected: player.summary.averageProjected,
-          avgActual: player.summary.averageActual,
+          totalWeeks: player.summary.weeksPlayed, // Deprecated: backwards compatibility
+          weeksPlayed: player.summary.weeksPlayed,
+          averageProjected: player.summary.averageProjected,
+          averageActual: player.summary.averageActual,
+          totalProjected: player.summary.totalProjected,
+          totalActual: player.summary.totalActual,
+          totalDifference: player.summary.totalDifference,
           accuracyRate: player.summary.accuracyRate,
         },
       })),

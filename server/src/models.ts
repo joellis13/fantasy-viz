@@ -37,15 +37,19 @@ export interface WeeklyPlayerData {
 }
 
 export interface PlayerSummary {
-  totalWeeks: number;
-  avgProjected: number;
-  avgActual: number;
+  totalWeeks: number; // Deprecated: use weeksPlayed instead
+  weeksPlayed: number;
+  averageProjected: number;
+  averageActual: number;
+  totalProjected: number;
+  totalActual: number;
+  totalDifference: number;
   accuracyRate: number;
 }
 
 export interface PlayerComparison {
   playerKey: string;
-  playerName: string;
+  name: string;
   position: string;
   team: string;
   weeklyData: WeeklyPlayerData[];

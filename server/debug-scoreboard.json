@@ -1,0 +1,54 @@
+{
+  "fantasy_content": {
+    "xml:lang": "en-US",
+    "yahoo:uri": "/fantasy/v2/league/461.l.329011/scoreboard;week=1-17",
+    "league": [
+      {
+        "league_key": "461.l.329011",
+        "league_id": "329011",
+        "name": "What's Your Fantasy League",
+        "url": "https://football.fantasysports.yahoo.com/f1/329011",
+        "logo_url": "https://s.yimg.com/ep/cx/blendr/v2/image-avatar-football-trophy-den-png_1721783476725.png",
+        "draft_status": "postdraft",
+        "num_teams": 12,
+        "edit_key": "9",
+        "weekly_deadline": "",
+        "roster_type": "week",
+        "league_update_timestamp": "1761893865",
+        "scoring_type": "head",
+        "league_type": "private",
+        "renew": "449_927235",
+        "renewed": "",
+        "felo_tier": "gold",
+        "is_highscore": false,
+        "matchup_week": 9,
+        "iris_group_chat_id": "",
+        "short_invitation_url": "https://football.fantasysports.yahoo.com/f1/329011/invitation?key=c8d5c2ed9efd6ddb&ikey=d73cb11124323d47",
+        "allow_add_to_dl_extra_pos": 1,
+        "is_pro_league": "0",
+        "is_cash_league": "0",
+        "current_week": 9,
+        "start_week": "1",
+        "start_date": "2025-09-04",
+        "end_week": "17",
+        "end_date": "2025-12-29",
+        "is_plus_league": "0",
+        "game_code": "nfl",
+        "season": "2025"
+      },
+      {
+        "scoreboard": {
+          "0": {
+            "matchups": {
+              "count": 0
+            }
+          },
+          "week": "1-17"
+        }
+      }
+    ],
+    "time": "48.378944396973ms",
+    "copyright": "Certain Data by Sportradar, Stats Perform and Rotowire",
+    "refresh_rate": "60"
+  }
+}

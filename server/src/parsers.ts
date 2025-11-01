@@ -100,17 +100,20 @@ function findLeagueInfo(
  */
 function extractTeamInfo(teamInfoArray: YahooTeamInfo[]): {
   id: string;
+  teamKey: string;
   name: string;
 } {
   let teamId = "unknown";
+  let teamKey = "unknown";
   let teamName = "Team";
 
   for (const infoObj of teamInfoArray) {
     if (infoObj?.team_id) teamId = String(infoObj.team_id);
+    if (infoObj?.team_key) teamKey = String(infoObj.team_key);
     if (infoObj?.name) teamName = String(infoObj.name);
   }
 
-  return { id: teamId, name: teamName };
+  return { id: teamId, teamKey, name: teamName };
 }
 
 /**
@@ -156,7 +159,7 @@ function parseTeam(teamWrapper: YahooTeamWrapper): NormalizedTeam | null {
   }
 
   // Extract team info
-  const { id, name } = extractTeamInfo(teamInfoArray);
+  const { id, teamKey, name } = extractTeamInfo(teamInfoArray);
 
   // Parse numeric values safely
   const seasonTotal = safeParseFloat(teamPoints.team_points.total);
@@ -172,6 +175,7 @@ function parseTeam(teamWrapper: YahooTeamWrapper): NormalizedTeam | null {
 
   return {
     id,
+    teamKey,
     name,
     seasonTotal,
     rank,
@@ -182,12 +186,13 @@ function parseTeam(teamWrapper: YahooTeamWrapper): NormalizedTeam | null {
 }
 
 export function normalizeLeague(
-  raw: unknown,
+  standingsData: unknown,
+  scoreboardData?: unknown | unknown[], // Can be single response or array
   options: { seed?: number; useDeterministicScores?: boolean } = {}
 ): NormalizedLeague {
   try {
     // Validate the response structure
-    if (!isLeagueStandingsResponse(raw)) {
+    if (!isLeagueStandingsResponse(standingsData)) {
       console.warn(
         "Invalid or non-standard league standings response structure"
       );
@@ -195,7 +200,7 @@ export function normalizeLeague(
     }
 
     // Now we have type-safe access to the response
-    const leagueArray = raw.fantasy_content.league;
+    const leagueArray = standingsData.fantasy_content.league;
 
     // Extract league info and standings (scanning array to be defensive)
     const leagueInfo = findLeagueInfo(leagueArray);
@@ -242,27 +247,159 @@ export function normalizeLeague(
     // Sort teams by rank to ensure consistent ordering
     teams.sort((a, b) => a.rank - b.rank);
 
-    // For POC: Yahoo doesn't provide weekly scores in standings endpoint
-    // We'll synthesize sample data for visualization
-    // Use deterministic seed if provided for reproducible tests
-    const random = options.useDeterministicScores
-      ? seededRandom(options.seed ?? 42)
-      : Math.random;
+    let points: WeeklyTeamScore[] = [];
 
-    const points: WeeklyTeamScore[] = [];
-    for (let week = 1; week <= endWeek; week++) {
-      for (const team of teams) {
-        // Generate somewhat realistic scores with variance
-        const avgScore =
-          team.seasonTotal > 0 ? team.seasonTotal / endWeek : 100;
-        const variance = avgScore * 0.3;
-        const score = Math.round(avgScore + (random() - 0.5) * variance * 2);
+    // Try to extract real scores from scoreboard data
+    if (scoreboardData) {
+      try {
+        // Handle both single response and array of responses
+        const scoreboardArray = Array.isArray(scoreboardData)
+          ? scoreboardData
+          : [scoreboardData];
 
-        points.push({
-          week,
-          teamName: team.name,
-          score: Math.max(50, score), // Ensure minimum score
-        });
+        for (const singleScoreboardData of scoreboardArray) {
+          if (!isRecord(singleScoreboardData)) continue;
+
+          const fc = (singleScoreboardData as any).fantasy_content;
+          if (!fc?.league || !Array.isArray(fc.league)) continue;
+
+          // Find scoreboard in league array
+          const scoreboardWrapper = fc.league.find(
+            (item: any) => isRecord(item) && item.scoreboard
+          );
+
+          if (!scoreboardWrapper?.scoreboard) continue;
+
+          // Yahoo wraps matchups in a "0" key
+          const scoreboardData = scoreboardWrapper.scoreboard["0"];
+          if (!scoreboardData?.matchups) continue;
+
+          const matchups = scoreboardData.matchups;
+
+          // Iterate through matchup weeks
+          for (const key in matchups) {
+            if (key === "count") continue;
+
+            const matchupWrapper = matchups[key]?.matchup;
+            if (!matchupWrapper || !isRecord(matchupWrapper)) continue;
+
+            // Week is at the top level of matchup object, not nested
+            const week = matchupWrapper.week
+              ? safeParseInt(matchupWrapper.week)
+              : 1;
+            const matchupTeams: any[] = [];
+
+            // matchup is an object with numeric keys for teams, plus metadata like "week", "status", etc
+            for (const matchupKey in matchupWrapper) {
+              // Skip non-team keys
+              if (
+                matchupKey === "count" ||
+                matchupKey === "week" ||
+                matchupKey === "week_start" ||
+                matchupKey === "week_end" ||
+                matchupKey === "status" ||
+                matchupKey === "is_playoffs" ||
+                matchupKey === "is_consolation" ||
+                matchupKey === "is_matchup_of_the_week" ||
+                matchupKey === "is_matchup_recap_available"
+              ) {
+                continue;
+              }
+
+              const item = matchupWrapper[matchupKey];
+              if (!isRecord(item)) continue;
+
+              // Check for teams
+              if (item.teams && isRecord(item.teams)) {
+                // teams is an object with numeric keys
+                for (const teamKey in item.teams) {
+                  if (teamKey === "count") continue;
+                  const teamWrapper = item.teams[teamKey];
+                  if (teamWrapper) {
+                    matchupTeams.push(teamWrapper);
+                  }
+                }
+              }
+            }
+
+            // Extract scores from teams
+            for (const teamWrapper of matchupTeams) {
+              if (!isRecord(teamWrapper) || !teamWrapper.team) continue;
+
+              const team = teamWrapper.team;
+              if (!Array.isArray(team) || team.length < 2) continue;
+
+              // team[0] is an array of team info objects (contains name)
+              // team[1] is an object with team_points
+              let teamName = "";
+              let teamPoints = 0;
+
+              // Extract name from team[0] array
+              const teamInfoArray = team[0];
+              if (Array.isArray(teamInfoArray)) {
+                for (const infoItem of teamInfoArray) {
+                  if (isRecord(infoItem) && infoItem.name) {
+                    teamName = String(infoItem.name);
+                    break;
+                  }
+                }
+              }
+
+              // Extract points from team[1] object
+              const teamStatsObj = team[1];
+              if (
+                isRecord(teamStatsObj) &&
+                teamStatsObj.team_points &&
+                isRecord(teamStatsObj.team_points)
+              ) {
+                teamPoints = safeParseFloat(
+                  (teamStatsObj.team_points as any).total
+                );
+              }
+
+              if (teamName && teamPoints > 0) {
+                points.push({
+                  week,
+                  teamName,
+                  score: teamPoints,
+                });
+              }
+            }
+          }
+        }
+
+        console.log(
+          `Extracted ${points.length} real weekly scores from scoreboard`
+        );
+      } catch (err) {
+        console.warn(
+          "Failed to parse scoreboard data, will use fallback:",
+          err
+        );
+        points = [];
+      }
+    }
+
+    // Fallback: generate synthetic scores if scoreboard parsing failed
+    if (points.length === 0) {
+      console.log("Using synthetic scores (no real scoreboard data available)");
+      const random = options.useDeterministicScores
+        ? seededRandom(options.seed ?? 42)
+        : Math.random;
+
+      for (let week = 1; week <= endWeek; week++) {
+        for (const team of teams) {
+          const avgScore =
+            team.seasonTotal > 0 ? team.seasonTotal / endWeek : 100;
+          const variance = avgScore * 0.3;
+          const score = Math.round(avgScore + (random() - 0.5) * variance * 2);
+
+          points.push({
+            week,
+            teamName: team.name,
+            score: Math.max(50, score),
+          });
+        }
       }
     }
 
@@ -329,50 +466,94 @@ function extractPlayerInfo(playerInfoArray: YahooPlayerInfo[]): {
 /**
  * Parse player data from roster response for a single week
  */
-function parsePlayerWeekData(
-  playerWrapper: YahooRosterPlayer
-): {
+function parsePlayerWeekData(playerWrapper: YahooRosterPlayer): {
   playerInfo: ReturnType<typeof extractPlayerInfo>;
   projectedPoints: number;
   actualPoints: number;
 } | null {
   if (!playerWrapper?.player || !Array.isArray(playerWrapper.player)) {
+    console.log("Invalid player wrapper structure");
     return null;
   }
 
   const [playerInfoArray, ...rest] = playerWrapper.player;
 
   if (!Array.isArray(playerInfoArray)) {
+    console.log("Player info array is not an array");
     return null;
   }
 
   const playerInfo = extractPlayerInfo(playerInfoArray);
+  console.log(`    Parsing player: ${playerInfo.name}`);
 
   // Find projected and actual points in the array
   // Yahoo returns these as additional elements in the player array
+  // The rest array typically has: [player_points, player_projected_points, player_stats]
   let projectedPoints = 0;
   let actualPoints = 0;
 
-  for (const item of rest) {
-    if (isRecord(item) && "coverage_type" in item && "total" in item) {
-      const points = safeParseFloat(item.total);
-      // Projected points don't have an actual week value in some responses
-      // We need to check both player_points and player_projected_points
-      if (item.coverage_type === "week") {
-        actualPoints = points;
+  console.log(`    Rest array has ${rest.length} elements`);
+  for (let i = 0; i < rest.length; i++) {
+    const item = rest[i];
+    console.log(`      Element ${i}:`, JSON.stringify(item).substring(0, 200));
+
+    if (isRecord(item)) {
+      // Check for player_points (actual points scored)
+      if (item.player_points && isRecord(item.player_points)) {
+        const pts = safeParseFloat(item.player_points.total);
+        console.log(`      Found player_points.total: ${pts}`);
+        actualPoints = pts;
+      }
+
+      // Check for player_projected_points (projected points)
+      if (
+        item.player_projected_points &&
+        isRecord(item.player_projected_points)
+      ) {
+        const pts = safeParseFloat(item.player_projected_points.total);
+        console.log(`      Found player_projected_points.total: ${pts}`);
+        projectedPoints = pts;
+      }
+
+      // Legacy: Check if it's a player_points structure with coverage_type
+      if ("coverage_type" in item && "total" in item) {
+        const points = safeParseFloat(item.total);
+        const coverageType = item.coverage_type;
+        const week = item.week;
+        console.log(
+          `      Found coverage_type: ${coverageType}, week: ${week}, total: ${points}`
+        );
+
+        // First YahooPlayerPoints is usually actual points (coverage_type: "week")
+        // Second YahooPlayerPoints is usually projected points (coverage_type: "week")
+        if (coverageType === "week" && actualPoints === 0) {
+          actualPoints = points;
+        } else if (coverageType === "week" && actualPoints > 0) {
+          // If we already have actual points, this might be projected
+          projectedPoints = points;
+        }
       }
     }
   }
 
   // Also check in playerInfoArray elements for player_points and player_projected_points
+  console.log(`    Checking ${playerInfoArray.length} info objects for points`);
   for (const info of playerInfoArray) {
     if (info?.player_points?.total) {
-      actualPoints = safeParseFloat(info.player_points.total);
+      const pts = safeParseFloat(info.player_points.total);
+      console.log(`      Found player_points.total: ${pts}`);
+      actualPoints = pts;
     }
     if (info?.player_projected_points?.total) {
-      projectedPoints = safeParseFloat(info.player_projected_points.total);
+      const pts = safeParseFloat(info.player_projected_points.total);
+      console.log(`      Found player_projected_points.total: ${pts}`);
+      projectedPoints = pts;
     }
   }
+
+  console.log(
+    `    Final - Projected: ${projectedPoints}, Actual: ${actualPoints}`
+  );
 
   return {
     playerInfo,
@@ -402,8 +583,14 @@ export function normalizePlayerComparison(
 
   try {
     for (const { week, data } of weeklyRosterResponses) {
+      console.log(`\n=== Processing week ${week} ===`);
+
       if (!isTeamRosterResponse(data)) {
         console.warn(`Invalid roster response for week ${week}`);
+        console.log(
+          "Data structure:",
+          JSON.stringify(data, null, 2).substring(0, 1000)
+        );
         continue;
       }
 
@@ -412,16 +599,49 @@ export function normalizePlayerComparison(
 
       if (!isRecord(rosterWrapper) || !rosterWrapper.roster) {
         console.warn(`No roster found for week ${week}`);
+        console.log(
+          "Roster wrapper:",
+          JSON.stringify(rosterWrapper, null, 2).substring(0, 500)
+        );
         continue;
       }
 
       const roster = rosterWrapper.roster as any;
-      const players = roster.players;
+
+      // Save first week's roster to file for debugging
+      if (week === weeklyRosterResponses[0].week) {
+        const fs = require("fs");
+        fs.writeFileSync("debug-roster.json", JSON.stringify(roster, null, 2));
+        console.log("Saved roster structure to debug-roster.json");
+      }
+
+      // Yahoo returns roster as an array-like object with numeric keys
+      // We need to find the actual roster data which might be at roster[0] or roster directly
+      let players;
+
+      if (roster.players) {
+        // Direct access
+        players = roster.players;
+      } else if (roster[0]?.players) {
+        // Nested in array-like structure
+        players = roster[0].players;
+      } else if (Array.isArray(roster) && roster[0]?.players) {
+        // Actually an array
+        players = roster[0].players;
+      } else {
+        console.warn(`Could not find players in roster for week ${week}`);
+        console.log("Roster keys:", Object.keys(roster));
+        continue;
+      }
 
       if (!isRecord(players)) {
         console.warn(`Invalid players data for week ${week}`);
+        console.log(`Players type: ${typeof players}, value:`, players);
         continue;
       }
+
+      console.log(`Players keys:`, Object.keys(players));
+      console.log(`Players count:`, players.count);
 
       // Iterate through player keys
       for (const key in players) {
@@ -430,9 +650,16 @@ export function normalizePlayerComparison(
         const playerWrapper = players[key] as YahooRosterPlayer;
         const parsed = parsePlayerWeekData(playerWrapper);
 
-        if (!parsed) continue;
+        if (!parsed) {
+          console.warn(`Failed to parse player at key ${key}`);
+          continue;
+        }
 
         const { playerInfo, projectedPoints, actualPoints } = parsed;
+        console.log(
+          `  Player: ${playerInfo.name}, Proj: ${projectedPoints}, Actual: ${actualPoints}`
+        );
+
         const playerKey = `${playerInfo.playerId}`; // Use player ID as key
 
         // Initialize player entry if not exists
@@ -467,43 +694,77 @@ export function normalizePlayerComparison(
     }
 
     // Convert map to array and calculate summaries
-    const result: NormalizedPlayerComparison[] = Array.from(
-      playerMap.values()
-    ).map((player) => {
-      // Sort weekly data by week
-      player.weeklyData.sort((a, b) => a.week - b.week);
+    // Filter out players with no weekly data OR players who never actually played
+    const result: NormalizedPlayerComparison[] = Array.from(playerMap.values())
+      .filter(
+        (player) =>
+          player.weeklyData.length > 0 &&
+          player.weeklyData.some((w) => w.actualPoints > 0)
+      )
+      .map((player) => {
+        // Sort weekly data by week
+        player.weeklyData.sort((a, b) => a.week - b.week);
 
-      const totalProjected = player.weeklyData.reduce(
-        (sum, w) => sum + w.projectedPoints,
-        0
-      );
-      const totalActual = player.weeklyData.reduce(
-        (sum, w) => sum + w.actualPoints,
-        0
-      );
-      const totalDifference = totalActual - totalProjected;
-      const weeksPlayed = player.weeklyData.length;
+        // Yahoo API doesn't consistently provide projected points
+        // As a workaround, use the player's running average as "projection"
+        // This allows for meaningful comparison of performance
+        let runningTotal = 0;
+        player.weeklyData.forEach((week, index) => {
+          if (week.projectedPoints === 0 && week.actualPoints > 0) {
+            // Use running average as projection (or actual for first week)
+            if (index === 0) {
+              week.projectedPoints = week.actualPoints; // First week, use actual
+            } else {
+              week.projectedPoints = runningTotal / index; // Running average
+            }
+            // Recalculate difference with new projection
+            week.difference = week.actualPoints - week.projectedPoints;
+            week.percentDifference =
+              week.projectedPoints > 0
+                ? ((week.actualPoints - week.projectedPoints) /
+                    week.projectedPoints) *
+                  100
+                : 0;
+          }
+          runningTotal += week.actualPoints;
+        });
 
-      // Calculate accuracy rate (within 20% of projection)
-      const accurateWeeks = player.weeklyData.filter(
-        (w) => Math.abs(w.percentDifference) <= 20
-      ).length;
-      const accuracyRate =
-        weeksPlayed > 0 ? (accurateWeeks / weeksPlayed) * 100 : 0;
+        const totalProjected = player.weeklyData.reduce(
+          (sum, w) => sum + w.projectedPoints,
+          0
+        );
+        const totalActual = player.weeklyData.reduce(
+          (sum, w) => sum + w.actualPoints,
+          0
+        );
+        const totalDifference = totalActual - totalProjected;
+        // Count only weeks where player actually played (had points)
+        const weeksPlayed = player.weeklyData.filter(
+          (w) => w.actualPoints > 0
+        ).length;
 
-      return {
-        ...player,
-        summary: {
-          totalProjected,
-          totalActual,
-          totalDifference,
-          averageProjected: weeksPlayed > 0 ? totalProjected / weeksPlayed : 0,
-          averageActual: weeksPlayed > 0 ? totalActual / weeksPlayed : 0,
-          weeksPlayed,
-          accuracyRate,
-        },
-      };
-    });
+        // Calculate accuracy rate (within 20% of projection)
+        const accurateWeeks = player.weeklyData.filter(
+          (w) => Math.abs(w.percentDifference) <= 20
+        ).length;
+        const accuracyRate =
+          weeksPlayed > 0 ? (accurateWeeks / weeksPlayed) * 100 : 0;
+
+        return {
+          ...player,
+          summary: {
+            totalProjected,
+            totalActual,
+            totalDifference,
+            averageProjected:
+              weeksPlayed > 0 ? totalProjected / weeksPlayed : 0,
+            averageActual: weeksPlayed > 0 ? totalActual / weeksPlayed : 0,
+            totalWeeks: weeksPlayed, // Deprecated field for backwards compatibility
+            weeksPlayed,
+            accuracyRate,
+          },
+        };
+      });
 
     // Sort by total actual points (highest first)
     result.sort((a, b) => b.summary.totalActual - a.summary.totalActual);

@@ -21,6 +21,61 @@ export class TeamController extends Controller {
   private fantasyService = new FantasyService();
 
   /**
+   * Get team roster for a specific week
+   * @summary Get team roster
+   * @param teamKey Yahoo Fantasy team key (format: league_key.t.team_id, e.g., "423.l.12345.t.1")
+   * @param week Week number (1-18), defaults to current week
+   * @example teamKey "461.l.329011.t.2"
+   * @example week 1
+   */
+  @Get("{teamKey}/roster")
+  @Security("cookieAuth")
+  @SuccessResponse("200", "Successfully retrieved team roster")
+  @Response<ErrorResponse>("401", "Not authenticated")
+  @Response<ErrorResponse>("404", "Team not found")
+  @Response<ErrorResponse>("500", "Failed to fetch roster")
+  public async getTeamRoster(
+    @Request() request: any,
+    @Path() teamKey: string,
+    @Query() week?: number
+  ): Promise<any> {
+    const userId = request.user?.userId;
+    if (!userId) {
+      this.setStatus(401);
+      throw new Error("Not authenticated");
+    }
+
+    const token = getTokenForUserId(userId);
+    if (!token) {
+      this.setStatus(401);
+      throw new Error("Not authenticated");
+    }
+
+    try {
+      return await this.fantasyService.getTeamRoster(
+        teamKey,
+        token.access_token,
+        week
+      );
+    } catch (err: any) {
+      console.error("Error fetching roster:", err.message);
+
+      // Set appropriate status codes
+      if (err.message.includes("not found") || err.message.includes("404")) {
+        this.setStatus(404);
+      } else if (err.message.includes("timeout")) {
+        this.setStatus(504);
+      } else if (err.message.includes("Not authorized")) {
+        this.setStatus(401);
+      } else {
+        this.setStatus(500);
+      }
+
+      throw new Error(err.message);
+    }
+  }
+
+  /**
    * Get player comparison data for a team across multiple weeks
    * @summary Get player comparison data
    * @param teamKey Yahoo Fantasy team key (format: league_key.t.team_id, e.g., "423.l.12345.t.1")

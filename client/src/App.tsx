@@ -4,12 +4,23 @@ import LineChartVisx from "./components/LineChartVisx";
 import PlayerComparison from "./pages/PlayerComparison";
 
 type Point = { week: number; teamName: string; score: number };
+type Team = {
+  teamKey: string;
+  teamName: string;
+  rank: number;
+  wins: number;
+  losses: number;
+  ties: number;
+  pointsFor: number;
+};
 type View = "league" | "players";
 
 export default function App() {
   const [view, setView] = useState<View>("league");
   const [leagueKey, setLeagueKey] = useState<string>("461.l.329011");
   const [data, setData] = useState<Point[]>([]);
+  const [teams, setTeams] = useState<Team[]>([]);
+  const [selectedTeamKey, setSelectedTeamKey] = useState<string>("");
   const [loading, setLoading] = useState(false);
 
   async function fetchLeague() {
@@ -23,6 +34,7 @@ export default function App() {
         `/api/league/${encodeURIComponent(leagueKey)}`
       );
       setData(res.data.points || []);
+      setTeams(res.data.teams || []);
     } catch (err: any) {
       console.error(err);
       alert(
@@ -31,6 +43,11 @@ export default function App() {
     } finally {
       setLoading(false);
     }
+  }
+
+  function viewTeamPlayers(teamKey: string) {
+    setSelectedTeamKey(teamKey);
+    setView("players");
   }
 
   useEffect(() => {
@@ -127,9 +144,71 @@ export default function App() {
           <div style={{ marginTop: 24 }}>
             <LineChartVisx data={data} />
           </div>
+
+          {/* Team Standings Table */}
+          {teams.length > 0 && (
+            <div style={{ marginTop: 32 }}>
+              <h3>Team Standings</h3>
+              <table
+                style={{
+                  width: "100%",
+                  borderCollapse: "collapse",
+                  marginTop: 16,
+                }}
+              >
+                <thead>
+                  <tr style={{ background: "#f0f0f0" }}>
+                    <th style={{ padding: 12, textAlign: "left" }}>Rank</th>
+                    <th style={{ padding: 12, textAlign: "left" }}>Team</th>
+                    <th style={{ padding: 12, textAlign: "center" }}>Record</th>
+                    <th style={{ padding: 12, textAlign: "right" }}>
+                      Points For
+                    </th>
+                    <th style={{ padding: 12, textAlign: "center" }}>
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {teams.map((team) => (
+                    <tr
+                      key={team.teamKey}
+                      style={{ borderBottom: "1px solid #e0e0e0" }}
+                    >
+                      <td style={{ padding: 12 }}>{team.rank}</td>
+                      <td style={{ padding: 12, fontWeight: "bold" }}>
+                        {team.teamName}
+                      </td>
+                      <td style={{ padding: 12, textAlign: "center" }}>
+                        {team.wins}-{team.losses}-{team.ties}
+                      </td>
+                      <td style={{ padding: 12, textAlign: "right" }}>
+                        {team.pointsFor.toFixed(2)}
+                      </td>
+                      <td style={{ padding: 12, textAlign: "center" }}>
+                        <button
+                          onClick={() => viewTeamPlayers(team.teamKey)}
+                          style={{
+                            padding: "6px 12px",
+                            background: "#1f77b4",
+                            color: "white",
+                            border: "none",
+                            borderRadius: 4,
+                            cursor: "pointer",
+                          }}
+                        >
+                          View Players
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
         </>
       ) : (
-        <PlayerComparison />
+        <PlayerComparison initialTeamKey={selectedTeamKey} />
       )}
     </div>
   );

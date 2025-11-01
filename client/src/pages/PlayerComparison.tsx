@@ -49,8 +49,14 @@ interface PlayerComparisonResponse {
 type SortOption = "points" | "difference" | "accuracy" | "name";
 type ViewMode = "chart" | "table";
 
-export default function PlayerComparison() {
-  const [teamKey, setTeamKey] = useState<string>("");
+interface PlayerComparisonProps {
+  initialTeamKey?: string;
+}
+
+export default function PlayerComparison({
+  initialTeamKey = "",
+}: PlayerComparisonProps) {
+  const [teamKey, setTeamKey] = useState<string>(initialTeamKey);
   const [startWeek, setStartWeek] = useState<number>(1);
   const [endWeek, setEndWeek] = useState<number>(17);
   const [data, setData] = useState<PlayerComparisonResponse | null>(null);
@@ -561,6 +567,7 @@ function PlayerComparisonChart({
 
       {/* Stats Summary */}
       <div
+        className="stats-summary"
         style={{
           marginTop: 20,
           padding: 16,
@@ -571,7 +578,7 @@ function PlayerComparisonChart({
         <div
           style={{
             display: "grid",
-            gridTemplateColumns: "repeat(4, 1fr)",
+            gridTemplateColumns: "repeat(5, 1fr)",
             gap: 16,
           }}
         >
@@ -592,7 +599,9 @@ function PlayerComparisonChart({
             </div>
           </div>
           <div>
-            <div style={{ fontSize: "0.85em", color: "#666" }}>Difference</div>
+            <div style={{ fontSize: "0.85em", color: "#666" }}>
+              Total Difference
+            </div>
             <div
               style={{
                 fontSize: "1.5em",
@@ -602,6 +611,23 @@ function PlayerComparisonChart({
             >
               {player.summary.totalDifference > 0 ? "+" : ""}
               {player.summary.totalDifference.toFixed(1)}
+            </div>
+          </div>
+          <div>
+            <div style={{ fontSize: "0.85em", color: "#666" }}>
+              Avg Difference
+            </div>
+            <div
+              style={{
+                fontSize: "1.5em",
+                fontWeight: "bold",
+                color: player.summary.totalDifference > 0 ? "green" : "red",
+              }}
+            >
+              {player.summary.totalDifference > 0 ? "+" : ""}
+              {(
+                player.summary.totalDifference / player.summary.weeksPlayed
+              ).toFixed(1)}
             </div>
           </div>
           <div>

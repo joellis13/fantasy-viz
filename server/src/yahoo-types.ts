@@ -289,6 +289,7 @@ export interface NormalizedLeague {
 
 export interface NormalizedTeam {
   id: string;
+  teamKey: string;
   name: string;
   seasonTotal: number;
   rank: number;
