@@ -72,7 +72,7 @@ export class PlayerController extends Controller {
       throw new Error("Not authenticated");
     }
 
-    const token = getTokenForUserId(userId);
+    const token = await getTokenForUserId(userId);
     if (!token) {
       this.setStatus(401);
       throw new Error("Not authenticated");
@@ -149,7 +149,7 @@ export class PlayerController extends Controller {
       throw new Error("Not authenticated");
     }
 
-    const token = getTokenForUserId(userId);
+    const token = await getTokenForUserId(userId);
     if (!token) {
       this.setStatus(401);
       throw new Error("Not authenticated");

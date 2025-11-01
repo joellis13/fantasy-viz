@@ -13,3 +13,6 @@
 
 # cache files (persistent across restarts)
 /server/cache/
+
+# Sensitive: OAuth tokens
+/server/cache/tokens.json

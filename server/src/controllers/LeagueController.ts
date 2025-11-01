@@ -13,17 +13,10 @@ import {
 } from "tsoa";
 import { LeagueResponse, ErrorResponse } from "../models";
 import { FantasyService } from "../FantasyService";
+import { getTokenForUserId, setTokenForUserId } from "../tokenStore";
 
-// Helper to get token from request
-const tokenStore = new Map<string, any>();
-
-export function getTokenForUserId(userId: string) {
-  return tokenStore.get(userId);
-}
-
-export function setTokenForUserId(userId: string, token: any) {
-  tokenStore.set(userId, token);
-}
+// Re-export for backwards compatibility
+export { getTokenForUserId, setTokenForUserId };
 
 @Route("api/league")
 @Tags("League")
@@ -54,7 +47,7 @@ export class LeagueController extends Controller {
       throw new Error("Not authenticated");
     }
 
-    const token = getTokenForUserId(userId);
+    const token = await getTokenForUserId(userId);
 
     if (!token) {
       this.setStatus(401);

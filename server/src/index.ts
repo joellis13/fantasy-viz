@@ -10,10 +10,7 @@ import axios from "axios";
 import qs from "qs";
 import swaggerUi from "swagger-ui-express";
 import { RegisterRoutes } from "./routes";
-import {
-  setTokenForUserId,
-  getTokenForUserId,
-} from "./controllers/LeagueController";
+import { setTokenForUserId, getTokenForUserId } from "./tokenStore";
 
 dotenv.config();
 
@@ -130,13 +127,13 @@ app.get("/auth/yahoo/callback", async (req, res) => {
 });
 
 // Debug endpoint to get current access token (development only)
-app.get("/debug/token", (req, res) => {
+app.get("/debug/token", async (req, res) => {
   const userId = (req.session as any)?.userId;
   if (!userId) {
     return res.status(401).json({ error: "Not authenticated" });
   }
 
-  const token = getTokenForUserId(userId);
+  const token = await getTokenForUserId(userId);
   if (!token) {
     return res.status(401).json({ error: "No token found" });
   }
@@ -144,8 +141,6 @@ app.get("/debug/token", (req, res) => {
   res.json({
     message: "Copy this token for test scripts",
     accessToken: token.access_token,
-    expiresIn: token.expires_in,
-    tokenType: token.token_type,
   });
 });
 
