@@ -156,6 +156,88 @@ export class FantasyService {
   }
 
   /**
+   * Get all leagues for the authenticated user
+   */
+  async getUserLeagues(accessToken: string): Promise<any> {
+    try {
+      // First, get user's games (to find current NFL season game)
+      const gamesUrl =
+        "https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1/games;game_keys=nfl?format=json";
+
+      await this.rateLimit();
+      const gamesResp = await axios.get(gamesUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
+        timeout: 10000,
+      });
+
+      // Extract game keys and get leagues for each
+      const games =
+        gamesResp.data?.fantasy_content?.users?.[0]?.user?.[1]?.games;
+
+      if (!games) {
+        return { leagues: [] };
+      }
+
+      const gameArray = Array.isArray(games) ? games : [games];
+      const gameCount = gameArray[0]?.count || 0;
+
+      const leagues: any[] = [];
+
+      // Get leagues for each game
+      for (let i = 0; i < gameCount; i++) {
+        const game = gameArray[i]?.game?.[0];
+        if (!game) continue;
+
+        const gameKey = game.game_key;
+        const season = game.season;
+
+        // Fetch leagues for this game
+        const leaguesUrl = `https://fantasysports.yahooapis.com/fantasy/v2/users;use_login=1/games;game_keys=${gameKey}/leagues?format=json`;
+
+        await this.rateLimit();
+        const leaguesResp = await axios.get(leaguesUrl, {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "User-Agent":
+              "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+          },
+          timeout: 10000,
+        });
+
+        const leaguesData =
+          leaguesResp.data?.fantasy_content?.users?.[0]?.user?.[1]?.games?.[0]
+            ?.game?.[1]?.leagues;
+
+        if (leaguesData) {
+          const leagueCount = leaguesData[0]?.count || 0;
+
+          for (let j = 0; j < leagueCount; j++) {
+            const league = leaguesData[j]?.league?.[0];
+            if (league) {
+              leagues.push({
+                leagueKey: league.league_key,
+                name: league.name,
+                season: season,
+                numTeams: league.num_teams,
+                gameCode: league.game_code,
+              });
+            }
+          }
+        }
+      }
+
+      return { leagues };
+    } catch (err: any) {
+      console.error("Failed to fetch user leagues:", err.message);
+      throw new Error(`Failed to fetch user leagues: ${err.message}`);
+    }
+  }
+
+  /**
    * Fetch league standings from Yahoo Fantasy API
    */
   async getLeague(

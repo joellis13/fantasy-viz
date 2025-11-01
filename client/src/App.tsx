@@ -22,6 +22,23 @@ export default function App() {
   const [teams, setTeams] = useState<Team[]>([]);
   const [selectedTeamKey, setSelectedTeamKey] = useState<string>("");
   const [loading, setLoading] = useState(false);
+  const [userLeagues, setUserLeagues] = useState<any[]>([]);
+  const [showLeagueSelector, setShowLeagueSelector] = useState(false);
+
+  // Fetch user's leagues on mount
+  useEffect(() => {
+    fetchUserLeagues();
+  }, []);
+
+  async function fetchUserLeagues() {
+    try {
+      const res = await axios.get("/api/league/user/leagues");
+      setUserLeagues(res.data.leagues || []);
+    } catch (err: any) {
+      // User not logged in or error - ignore
+      console.log("Could not fetch user leagues:", err.message);
+    }
+  }
 
   async function fetchLeague() {
     if (!leagueKey) {
@@ -48,6 +65,13 @@ export default function App() {
   function viewTeamPlayers(teamKey: string) {
     setSelectedTeamKey(teamKey);
     setView("players");
+  }
+
+  function selectLeague(key: string) {
+    setLeagueKey(key);
+    setShowLeagueSelector(false);
+    // Optionally auto-load the league
+    setTimeout(() => fetchLeague(), 0);
   }
 
   useEffect(() => {
@@ -132,14 +156,71 @@ export default function App() {
                 style={{ padding: 8, width: 300, marginLeft: 8 }}
               />
             </label>
-            <button
-              onClick={fetchLeague}
-              style={{ marginTop: 8, padding: "8px 16px" }}
-              disabled={loading}
-            >
-              {loading ? "Loading..." : "Load League"}
-            </button>
+            <div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+              <button
+                onClick={fetchLeague}
+                style={{ padding: "8px 16px" }}
+                disabled={loading}
+              >
+                {loading ? "Loading..." : "Load League"}
+              </button>
+              {userLeagues.length > 0 && (
+                <button
+                  onClick={() => setShowLeagueSelector(!showLeagueSelector)}
+                  style={{
+                    padding: "8px 16px",
+                    background: showLeagueSelector ? "#e0e0e0" : "white",
+                    border: "1px solid #ccc",
+                    borderRadius: 4,
+                    cursor: "pointer",
+                  }}
+                >
+                  {showLeagueSelector ? "Hide" : "Show"} My Leagues (
+                  {userLeagues.length})
+                </button>
+              )}
+            </div>
           </div>
+
+          {/* League Selector */}
+          {showLeagueSelector && userLeagues.length > 0 && (
+            <div
+              style={{
+                marginTop: 16,
+                padding: 16,
+                background: "#f9f9f9",
+                border: "1px solid #ddd",
+                borderRadius: 4,
+              }}
+            >
+              <h4 style={{ marginTop: 0 }}>Select a League:</h4>
+              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                {userLeagues.map((league: any) => (
+                  <button
+                    key={league.leagueKey}
+                    onClick={() => selectLeague(league.leagueKey)}
+                    style={{
+                      padding: "12px 16px",
+                      background: "white",
+                      border:
+                        league.leagueKey === leagueKey
+                          ? "2px solid #1f77b4"
+                          : "1px solid #ccc",
+                      borderRadius: 4,
+                      cursor: "pointer",
+                      textAlign: "left",
+                    }}
+                  >
+                    <div style={{ fontWeight: "bold" }}>{league.name}</div>
+                    <div style={{ fontSize: "0.9em", color: "#666" }}>
+                      {league.season} • {league.numTeams} teams •{" "}
+                      {league.leagueKey}
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div style={{ marginTop: 24 }}>
             <LineChartVisx data={data} />
