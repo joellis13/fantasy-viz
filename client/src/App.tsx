@@ -36,7 +36,6 @@ export default function App() {
       setUserLeagues(res.data.leagues || []);
     } catch (err: any) {
       // User not logged in or error - ignore
-      console.log("Could not fetch user leagues:", err.message);
     }
   }
 
@@ -136,8 +135,40 @@ export default function App() {
           >
             Connect Yahoo
           </a>
+          {userLeagues.length > 0 && (
+            <button
+              onClick={fetchUserLeagues}
+              style={{
+                padding: "8px 16px",
+                background: "rgba(255,255,255,0.2)",
+                color: "white",
+                border: "2px solid white",
+                borderRadius: 4,
+                cursor: "pointer",
+                fontWeight: "bold",
+              }}
+              title="Refresh your leagues"
+            >
+              ↻ Refresh Leagues
+            </button>
+          )}
         </div>
       </div>
+
+      {/* Debug info */}
+      {userLeagues.length > 0 && (
+        <div
+          style={{
+            background: "#e8f5e9",
+            padding: "8px 12px",
+            borderRadius: 4,
+            marginBottom: 12,
+            fontSize: "0.9em",
+          }}
+        >
+          ✓ Found {userLeagues.length} league(s) from your Yahoo account
+        </div>
+      )}
 
       {view === "league" ? (
         <>

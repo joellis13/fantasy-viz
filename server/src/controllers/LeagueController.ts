@@ -24,6 +24,42 @@ export class LeagueController extends Controller {
   private fantasyService = new FantasyService();
 
   /**
+   * Get all leagues for the authenticated user
+   * @summary Get user's leagues
+   */
+  @Get("user/leagues")
+  @Security("cookieAuth")
+  @SuccessResponse("200", "Successfully retrieved user leagues")
+  @Response<ErrorResponse>("401", "Not authenticated")
+  @Response<ErrorResponse>("500", "Failed to fetch user leagues")
+  public async getUserLeagues(@Request() request: any): Promise<any> {
+    const userId = request.user?.userId;
+
+    if (!userId) {
+      this.setStatus(401);
+      throw new Error("Not authenticated");
+    }
+
+    const token = await getTokenForUserId(userId);
+
+    if (!token) {
+      this.setStatus(401);
+      throw new Error("Not authenticated");
+    }
+
+    try {
+      const result = await this.fantasyService.getUserLeagues(
+        token.access_token
+      );
+      return result;
+    } catch (err: any) {
+      console.error("Failed to fetch user leagues:", err.message);
+      this.setStatus(500);
+      throw new Error("Failed to fetch user leagues: " + err.message);
+    }
+  }
+
+  /**
    * Get league standings and information
    * @summary Get league standings
    * @param leagueKey Yahoo Fantasy league key (format: game_key.l.league_id, e.g., "423.l.12345")
@@ -73,42 +109,6 @@ export class LeagueController extends Controller {
       }
 
       throw new Error(err.message);
-    }
-  }
-
-  /**
-   * Get all leagues for the authenticated user
-   * @summary Get user's leagues
-   */
-  @Get("user/leagues")
-  @Security("cookieAuth")
-  @SuccessResponse("200", "Successfully retrieved user leagues")
-  @Response<ErrorResponse>("401", "Not authenticated")
-  @Response<ErrorResponse>("500", "Failed to fetch user leagues")
-  public async getUserLeagues(@Request() request: any): Promise<any> {
-    const userId = request.user?.userId;
-
-    if (!userId) {
-      this.setStatus(401);
-      throw new Error("Not authenticated");
-    }
-
-    const token = await getTokenForUserId(userId);
-
-    if (!token) {
-      this.setStatus(401);
-      throw new Error("Not authenticated");
-    }
-
-    try {
-      const result = await this.fantasyService.getUserLeagues(
-        token.access_token
-      );
-      return result;
-    } catch (err: any) {
-      console.error("Failed to fetch user leagues:", err.message);
-      this.setStatus(500);
-      throw new Error("Failed to fetch user leagues: " + err.message);
     }
   }
 }

@@ -182,15 +182,15 @@ export class FantasyService {
         return { leagues: [] };
       }
 
-      const gameArray = Array.isArray(games) ? games : [games];
-      const gameCount = gameArray[0]?.count || 0;
-
+      const gameCount = games.count || 0;
       const leagues: any[] = [];
 
       // Get leagues for each game
       for (let i = 0; i < gameCount; i++) {
-        const game = gameArray[i]?.game?.[0];
-        if (!game) continue;
+        const game = games[i]?.game?.[0];
+        if (!game) {
+          continue;
+        }
 
         const gameKey = game.game_key;
         const season = game.season;
@@ -213,7 +213,7 @@ export class FantasyService {
             ?.game?.[1]?.leagues;
 
         if (leaguesData) {
-          const leagueCount = leaguesData[0]?.count || 0;
+          const leagueCount = leaguesData.count || 0;
 
           for (let j = 0; j < leagueCount; j++) {
             const league = leaguesData[j]?.league?.[0];
