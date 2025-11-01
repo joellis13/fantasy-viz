@@ -74,3 +74,34 @@ export interface ErrorResponse {
   error: string;
   details?: string;
 }
+
+export interface PlayerSearchResult {
+  playerKey: string;
+  playerId: string;
+  name: string;
+  position: string;
+  team: string;
+  imageUrl?: string;
+  status?: string;
+}
+
+export interface PlayerSearchResponse {
+  gameKey: string;
+  totalResults: number;
+  start: number;
+  count: number;
+  players: PlayerSearchResult[];
+}
+
+export interface PlayerCompareResponse {
+  weekRange: {
+    start: number;
+    end: number;
+  };
+  players: PlayerStats[];
+  comparison: {
+    player1Better: number; // Number of weeks player 1 scored more
+    player2Better: number; // Number of weeks player 2 scored more
+    ties: number;
+  };
+}

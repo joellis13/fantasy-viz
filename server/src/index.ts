@@ -10,7 +10,10 @@ import axios from "axios";
 import qs from "qs";
 import swaggerUi from "swagger-ui-express";
 import { RegisterRoutes } from "./routes";
-import { setTokenForUserId } from "./controllers/LeagueController";
+import {
+  setTokenForUserId,
+  getTokenForUserId,
+} from "./controllers/LeagueController";
 
 dotenv.config();
 
@@ -59,7 +62,7 @@ try {
     })
   );
 
-  console.log("Swagger UI available at /api-docs");
+  console.log(`Swagger UI available at ${BASE_URL}/api-docs`);
 } catch (err) {
   console.warn("Failed to load Swagger documentation:", err);
 }
@@ -89,7 +92,7 @@ app.get("/auth/yahoo/login", (req, res) => {
   const state = crypto.randomBytes(32).toString("hex");
   req.session!.oauthState = state;
   const url = buildYahooAuthUrl(state);
-  console.log("Yahoo auth URL:", url);
+  // console.log("Yahoo auth URL:", url);
   if (req.query.debug) return res.json({ url });
   res.redirect(url);
 });
@@ -124,6 +127,26 @@ app.get("/auth/yahoo/callback", async (req, res) => {
     console.error("Token exchange error:", err.response?.data || err.message);
     res.status(500).send("OAuth token exchange failed");
   }
+});
+
+// Debug endpoint to get current access token (development only)
+app.get("/debug/token", (req, res) => {
+  const userId = (req.session as any)?.userId;
+  if (!userId) {
+    return res.status(401).json({ error: "Not authenticated" });
+  }
+
+  const token = getTokenForUserId(userId);
+  if (!token) {
+    return res.status(401).json({ error: "No token found" });
+  }
+
+  res.json({
+    message: "Copy this token for test scripts",
+    accessToken: token.access_token,
+    expiresIn: token.expires_in,
+    tokenType: token.token_type,
+  });
 });
 
 /**

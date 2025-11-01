@@ -58,8 +58,6 @@ export class TeamController extends Controller {
         week
       );
     } catch (err: any) {
-      console.error("Error fetching roster:", err.message);
-
       // Set appropriate status codes
       if (err.message.includes("not found") || err.message.includes("404")) {
         this.setStatus(404);
@@ -131,10 +129,6 @@ export class TeamController extends Controller {
         token.access_token
       );
     } catch (err: any) {
-      console.error(
-        "Error fetching player stats:",
-        err.response?.data || err.message
-      );
       this.setStatus(500);
       throw new Error("Failed to fetch player stats: " + err.message);
     }

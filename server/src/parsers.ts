@@ -14,6 +14,7 @@ import type {
   NormalizedPlayerStats,
   PlayerWeeklyStats,
 } from "./yahoo-types";
+import type { PlayerSearchResponse, PlayerSearchResult } from "./models";
 
 /**
  * Seeded pseudo-random number generator for deterministic testing
@@ -144,17 +145,14 @@ function parseTeam(teamWrapper: YahooTeamWrapper): NormalizedTeam | null {
 
   // Validate required structures
   if (!Array.isArray(teamInfoArray)) {
-    console.warn("Invalid team info array");
     return null;
   }
 
   if (!teamPoints?.team_points?.total) {
-    console.warn("Missing team_points.total");
     return null;
   }
 
   if (!teamStandings?.team_standings) {
-    console.warn("Missing team_standings");
     return null;
   }
 
@@ -193,9 +191,6 @@ export function normalizeLeague(
   try {
     // Validate the response structure
     if (!isLeagueStandingsResponse(standingsData)) {
-      console.warn(
-        "Invalid or non-standard league standings response structure"
-      );
       return { id: "unknown", name: "unknown", teams: [], points: [] };
     }
 
@@ -207,12 +202,10 @@ export function normalizeLeague(
     const standingsWrapper = findStandingsWrapper(leagueArray);
 
     if (!leagueInfo) {
-      console.warn("No league info found in league array");
       return { id: "unknown", name: "unknown", teams: [], points: [] };
     }
 
     if (!standingsWrapper) {
-      console.warn("No standings wrapper found in league array");
       return { id: "unknown", name: "unknown", teams: [], points: [] };
     }
 
@@ -223,7 +216,6 @@ export function normalizeLeague(
     // Extract teams from standings
     const standingsArray = standingsWrapper.standings;
     if (!Array.isArray(standingsArray) || !standingsArray[0]?.teams) {
-      console.warn("Invalid standings array structure");
       return { id: leagueId, name: leagueName, teams: [], points: [] };
     }
 
@@ -239,8 +231,6 @@ export function normalizeLeague(
 
       if (team) {
         teams.push(team);
-      } else {
-        console.warn(`Skipping malformed team entry at key: ${key}`);
       }
     }
 
@@ -367,22 +357,13 @@ export function normalizeLeague(
             }
           }
         }
-
-        console.log(
-          `Extracted ${points.length} real weekly scores from scoreboard`
-        );
       } catch (err) {
-        console.warn(
-          "Failed to parse scoreboard data, will use fallback:",
-          err
-        );
         points = [];
       }
     }
 
     // Fallback: generate synthetic scores if scoreboard parsing failed
     if (points.length === 0) {
-      console.log("Using synthetic scores (no real scoreboard data available)");
       const random = options.useDeterministicScores
         ? seededRandom(options.seed ?? 42)
         : Math.random;
@@ -443,24 +424,27 @@ function isTeamRosterResponse(data: unknown): data is TeamRosterResponse {
  * Extract player info from the player info array
  */
 function extractPlayerInfo(playerInfoArray: YahooPlayerInfo[]): {
+  playerKey: string;
   playerId: string;
   name: string;
   position: string;
   team: string;
 } {
+  let playerKey = "";
   let playerId = "unknown";
   let name = "Unknown Player";
   let position = "UNKNOWN";
   let team = "";
 
   for (const info of playerInfoArray) {
+    if (info?.player_key) playerKey = String(info.player_key);
     if (info?.player_id) playerId = String(info.player_id);
     if (info?.name?.full) name = info.name.full;
     if (info?.display_position) position = info.display_position;
     if (info?.editorial_team_abbr) team = info.editorial_team_abbr;
   }
 
-  return { playerId, name, position, team };
+  return { playerKey, playerId, name, position, team };
 }
 
 /**
@@ -472,19 +456,16 @@ function parsePlayerWeekData(playerWrapper: YahooRosterPlayer): {
   actualPoints: number;
 } | null {
   if (!playerWrapper?.player || !Array.isArray(playerWrapper.player)) {
-    console.log("Invalid player wrapper structure");
     return null;
   }
 
   const [playerInfoArray, ...rest] = playerWrapper.player;
 
   if (!Array.isArray(playerInfoArray)) {
-    console.log("Player info array is not an array");
     return null;
   }
 
   const playerInfo = extractPlayerInfo(playerInfoArray);
-  console.log(`    Parsing player: ${playerInfo.name}`);
 
   // Find projected and actual points in the array
   // Yahoo returns these as additional elements in the player array
@@ -492,16 +473,13 @@ function parsePlayerWeekData(playerWrapper: YahooRosterPlayer): {
   let projectedPoints = 0;
   let actualPoints = 0;
 
-  console.log(`    Rest array has ${rest.length} elements`);
   for (let i = 0; i < rest.length; i++) {
     const item = rest[i];
-    console.log(`      Element ${i}:`, JSON.stringify(item).substring(0, 200));
 
     if (isRecord(item)) {
       // Check for player_points (actual points scored)
       if (item.player_points && isRecord(item.player_points)) {
         const pts = safeParseFloat(item.player_points.total);
-        console.log(`      Found player_points.total: ${pts}`);
         actualPoints = pts;
       }
 
@@ -511,7 +489,6 @@ function parsePlayerWeekData(playerWrapper: YahooRosterPlayer): {
         isRecord(item.player_projected_points)
       ) {
         const pts = safeParseFloat(item.player_projected_points.total);
-        console.log(`      Found player_projected_points.total: ${pts}`);
         projectedPoints = pts;
       }
 
@@ -519,10 +496,6 @@ function parsePlayerWeekData(playerWrapper: YahooRosterPlayer): {
       if ("coverage_type" in item && "total" in item) {
         const points = safeParseFloat(item.total);
         const coverageType = item.coverage_type;
-        const week = item.week;
-        console.log(
-          `      Found coverage_type: ${coverageType}, week: ${week}, total: ${points}`
-        );
 
         // First YahooPlayerPoints is usually actual points (coverage_type: "week")
         // Second YahooPlayerPoints is usually projected points (coverage_type: "week")
@@ -537,23 +510,16 @@ function parsePlayerWeekData(playerWrapper: YahooRosterPlayer): {
   }
 
   // Also check in playerInfoArray elements for player_points and player_projected_points
-  console.log(`    Checking ${playerInfoArray.length} info objects for points`);
   for (const info of playerInfoArray) {
     if (info?.player_points?.total) {
       const pts = safeParseFloat(info.player_points.total);
-      console.log(`      Found player_points.total: ${pts}`);
       actualPoints = pts;
     }
     if (info?.player_projected_points?.total) {
       const pts = safeParseFloat(info.player_projected_points.total);
-      console.log(`      Found player_projected_points.total: ${pts}`);
       projectedPoints = pts;
     }
   }
-
-  console.log(
-    `    Final - Projected: ${projectedPoints}, Actual: ${actualPoints}`
-  );
 
   return {
     playerInfo,
@@ -583,14 +549,7 @@ export function normalizePlayerStats(
 
   try {
     for (const { week, data } of weeklyRosterResponses) {
-      console.log(`\n=== Processing week ${week} ===`);
-
       if (!isTeamRosterResponse(data)) {
-        console.warn(`Invalid roster response for week ${week}`);
-        console.log(
-          "Data structure:",
-          JSON.stringify(data, null, 2).substring(0, 1000)
-        );
         continue;
       }
 
@@ -598,22 +557,10 @@ export function normalizePlayerStats(
       const rosterWrapper = team[1];
 
       if (!isRecord(rosterWrapper) || !rosterWrapper.roster) {
-        console.warn(`No roster found for week ${week}`);
-        console.log(
-          "Roster wrapper:",
-          JSON.stringify(rosterWrapper, null, 2).substring(0, 500)
-        );
         continue;
       }
 
       const roster = rosterWrapper.roster as any;
-
-      // Save first week's roster to file for debugging
-      if (week === weeklyRosterResponses[0].week) {
-        const fs = require("fs");
-        fs.writeFileSync("debug-roster.json", JSON.stringify(roster, null, 2));
-        console.log("Saved roster structure to debug-roster.json");
-      }
 
       // Yahoo returns roster as an array-like object with numeric keys
       // We need to find the actual roster data which might be at roster[0] or roster directly
@@ -629,19 +576,12 @@ export function normalizePlayerStats(
         // Actually an array
         players = roster[0].players;
       } else {
-        console.warn(`Could not find players in roster for week ${week}`);
-        console.log("Roster keys:", Object.keys(roster));
         continue;
       }
 
       if (!isRecord(players)) {
-        console.warn(`Invalid players data for week ${week}`);
-        console.log(`Players type: ${typeof players}, value:`, players);
         continue;
       }
-
-      console.log(`Players keys:`, Object.keys(players));
-      console.log(`Players count:`, players.count);
 
       // Iterate through player keys
       for (const key in players) {
@@ -651,21 +591,18 @@ export function normalizePlayerStats(
         const parsed = parsePlayerWeekData(playerWrapper);
 
         if (!parsed) {
-          console.warn(`Failed to parse player at key ${key}`);
           continue;
         }
 
         const { playerInfo, projectedPoints, actualPoints } = parsed;
-        console.log(
-          `  Player: ${playerInfo.name}, Proj: ${projectedPoints}, Actual: ${actualPoints}`
-        );
 
-        const playerKey = `${playerInfo.playerId}`; // Use player ID as key
+        const playerKey =
+          playerInfo.playerKey || `player-${playerInfo.playerId}`; // Use player_key if available
 
         // Initialize player entry if not exists
         if (!playerMap.has(playerKey)) {
           playerMap.set(playerKey, {
-            playerKey: `player-${playerInfo.playerId}`,
+            playerKey: playerKey,
             playerId: playerInfo.playerId,
             name: playerInfo.name,
             position: playerInfo.position,
@@ -776,5 +713,114 @@ export function normalizePlayerStats(
       console.error("Error details:", err.message, err.stack);
     }
     return [];
+  }
+}
+
+/**
+ * Normalize player search results from Yahoo API
+ */
+export function normalizePlayerSearch(
+  data: unknown,
+  gameKey: string,
+  start: number,
+  count: number
+): PlayerSearchResponse {
+  try {
+    if (!isRecord(data) || !isRecord(data.fantasy_content)) {
+      throw new Error("Invalid player search response structure");
+    }
+
+    const fantasyContent = data.fantasy_content;
+    const game = fantasyContent.game;
+
+    if (!Array.isArray(game)) {
+      throw new Error("Game data is not an array");
+    }
+
+    // Find the players object in the game array
+    const playersWrapper = game.find(
+      (item) => isRecord(item) && "players" in item
+    );
+
+    if (!playersWrapper || !isRecord(playersWrapper.players)) {
+      return {
+        gameKey,
+        totalResults: 0,
+        start,
+        count,
+        players: [],
+      };
+    }
+
+    const playersData = playersWrapper.players;
+    const totalResults = (playersData.count as number) || 0;
+    const players: PlayerSearchResult[] = [];
+
+    // Iterate through player keys
+    for (const key in playersData) {
+      if (key === "count") continue;
+
+      const playerWrapper = playersData[key];
+      if (!isRecord(playerWrapper) || !Array.isArray(playerWrapper.player)) {
+        continue;
+      }
+
+      const playerArray = playerWrapper.player;
+      if (playerArray.length === 0) continue;
+
+      const playerInfo = playerArray[0];
+      if (!Array.isArray(playerInfo)) continue;
+
+      // Extract player details from the info array
+      let playerKey = "";
+      let playerId = "";
+      let name = "";
+      let position = "";
+      let team = "";
+      let imageUrl = "";
+      let status = "";
+
+      for (const info of playerInfo) {
+        if (isRecord(info)) {
+          if (info.player_key) playerKey = String(info.player_key);
+          if (info.player_id) playerId = String(info.player_id);
+          if (isRecord(info.name) && info.name.full)
+            name = String(info.name.full);
+          if (info.display_position) position = String(info.display_position);
+          if (info.editorial_team_abbr) team = String(info.editorial_team_abbr);
+          if (info.image_url) imageUrl = String(info.image_url);
+          if (info.status) status = String(info.status);
+        }
+      }
+
+      if (playerKey && name) {
+        players.push({
+          playerKey,
+          playerId,
+          name,
+          position,
+          team,
+          imageUrl: imageUrl || undefined,
+          status: status || undefined,
+        });
+      }
+    }
+
+    return {
+      gameKey,
+      totalResults,
+      start,
+      count,
+      players,
+    };
+  } catch (err) {
+    console.error("normalizePlayerSearch error:", err);
+    return {
+      gameKey,
+      totalResults: 0,
+      start,
+      count,
+      players: [],
+    };
   }
 }

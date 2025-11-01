@@ -48,22 +48,26 @@ export class LeagueController extends Controller {
     @Request() request: any
   ): Promise<LeagueResponse> {
     const userId = request.user?.userId;
+
     if (!userId) {
       this.setStatus(401);
       throw new Error("Not authenticated");
     }
 
     const token = getTokenForUserId(userId);
+
     if (!token) {
       this.setStatus(401);
       throw new Error("Not authenticated");
     }
 
     try {
-      return await this.fantasyService.getLeague(leagueKey, token.access_token);
+      const result = await this.fantasyService.getLeague(
+        leagueKey,
+        token.access_token
+      );
+      return result;
     } catch (err: any) {
-      console.error("Error fetching league:", err.message);
-
       // Set appropriate status codes
       if (err.message.includes("not found") || err.message.includes("404")) {
         this.setStatus(404);

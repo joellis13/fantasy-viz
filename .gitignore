@@ -7,3 +7,6 @@
 # tsoa generated files
 /server/src/routes.ts
 /server/src/swagger.json
+
+# debug files
+/server/debug-*.json

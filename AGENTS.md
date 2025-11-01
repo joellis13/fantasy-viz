@@ -46,6 +46,54 @@ This is a Fantasy Football visualization app with:
    - Use `@Response<ErrorResponse>()` for each error status code
    - Document with `@summary` and `@example` in JSDoc comments
 
+### Logging & Debug Code Policy
+
+**What to KEEP:**
+
+- Server startup messages in `index.ts` (e.g., "Server running at...", "Swagger UI available at...")
+- `console.error()` in catch blocks for production debugging
+- Critical warnings that indicate data issues (e.g., "Player not found")
+
+**What to REMOVE:**
+
+- `console.log()` for debugging/tracing execution flow
+- `console.log()` for parameter logging ("Called with...", "Fetching...")
+- `console.log()` for step-by-step progress ("Processing...", "Found X items...")
+- `console.warn()` for non-critical validation failures
+- Cache hit/miss logging (performance debugging)
+- File write operations for debugging (`fs.writeFileSync("debug-*.json")`)
+- Test/investigation scripts (`test-*.js`, `run-*.js`)
+- Token extraction helper scripts
+
+**Cleanup Guidelines:**
+
+- When implementing a feature, add minimal logging for development
+- Before committing, remove debug logs that aren't needed in production
+- If you add debug file writes, add the pattern to `.gitignore` immediately
+- Remove investigation/test scripts once the issue is resolved
+- Keep error logging simple: let errors bubble up with clear messages
+
+### Code Quality Maintenance
+
+**Dead Code Removal:**
+When you notice any of these, remove them immediately:
+
+- Unused imports in controllers/services
+- Exported functions that are never imported elsewhere
+- Methods in services that are never called from controllers
+- Optional interface fields that are never set/used
+- Test scripts and documentation from completed investigations
+- Commented-out code blocks (if > 1 week old)
+
+**Before Committing:**
+
+- [ ] Remove all `console.log()` debugging statements
+- [ ] Check for unused imports and functions
+- [ ] Remove any test scripts created during investigation
+- [ ] Remove debug file writes and helper scripts
+- [ ] Verify `.gitignore` includes any debug file patterns
+- [ ] Run build to ensure no compilation errors
+
 ### Error Handling
 
 - Always use try-catch in service methods
@@ -88,3 +136,6 @@ Example keys:
 - [ ] Auto-generated files (`routes.ts`, `swagger.json`) in `.gitignore`
 - [ ] File names match class names (FantasyService.ts not services.ts)
 - [ ] All dependencies properly imported (axios, express, etc.)
+- [ ] No debug `console.log()` statements (only `console.error()` in catch blocks)
+- [ ] No test scripts or debug files committed to repo
+- [ ] No unused imports or dead code in services/controllers
