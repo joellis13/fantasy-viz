@@ -10,3 +10,6 @@
 
 # debug files
 /server/debug-*.json
+
+# cache files (persistent across restarts)
+/server/cache/

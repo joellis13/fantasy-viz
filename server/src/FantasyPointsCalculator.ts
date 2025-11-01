@@ -6,6 +6,8 @@
  */
 
 import axios from "axios";
+import * as fs from "fs";
+import * as path from "path";
 
 interface StatModifier {
   stat: {
@@ -30,19 +32,47 @@ interface ScoringCache {
 export class FantasyPointsCalculator {
   private static cache: Map<string, ScoringCache> = new Map();
   private static readonly CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
+  private static readonly cacheDir = path.join(__dirname, "..", "cache");
 
   /**
-   * Get scoring rules for a league (cached)
+   * Get scoring rules for a league (cached in memory and file)
    * Public method for use by other services
    */
   public static async getScoringRules(
     leagueKey: string,
     accessToken: string
   ): Promise<Map<number, number>> {
-    // Check cache first
+    // Check memory cache first
     const cached = this.cache.get(leagueKey);
     if (cached && Date.now() - cached.timestamp < this.CACHE_DURATION_MS) {
       return cached.scoringRules;
+    }
+
+    // Check file cache
+    try {
+      const filename = `league_${leagueKey.replace(/\./g, "_")}_scoring.json`;
+      const filepath = path.join(this.cacheDir, filename);
+
+      if (fs.existsSync(filepath)) {
+        const fileCache = JSON.parse(fs.readFileSync(filepath, "utf-8"));
+
+        // Check if file cache is still valid (24 hours)
+        if (Date.now() - fileCache.timestamp < this.CACHE_DURATION_MS) {
+          // Reconstruct Map from array (JSON can't store Maps directly)
+          const scoringRules = new Map<number, number>(fileCache.scoringRules);
+
+          // Load into memory cache
+          this.cache.set(leagueKey, {
+            scoringRules,
+            timestamp: fileCache.timestamp,
+            leagueKey,
+          });
+
+          return scoringRules;
+        }
+      }
+    } catch (error) {
+      // File cache failed, will fetch from API
     }
 
     // Fetch from Yahoo API
@@ -78,12 +108,28 @@ export class FantasyPointsCalculator {
         }
       }
 
-      // Cache the results
+      // Cache the results in memory
       this.cache.set(leagueKey, {
         scoringRules,
         timestamp: Date.now(),
         leagueKey,
       });
+
+      // Save to file cache
+      try {
+        const filename = `league_${leagueKey.replace(/\./g, "_")}_scoring.json`;
+        const filepath = path.join(this.cacheDir, filename);
+
+        const cacheData = {
+          scoringRules: Array.from(scoringRules.entries()), // Convert Map to array for JSON
+          timestamp: Date.now(),
+          leagueKey,
+        };
+
+        fs.writeFileSync(filepath, JSON.stringify(cacheData, null, 2), "utf-8");
+      } catch (error) {
+        console.error("Failed to save scoring rules to file cache:", error);
+      }
 
       return scoringRules;
     } catch (error: any) {

@@ -8,6 +8,8 @@
  */
 
 import axios from "axios";
+import * as fs from "fs";
+import * as path from "path";
 import { NormalizedPlayerStats, PlayerWeeklyStats } from "./yahoo-types";
 
 const SLEEPER_BASE_URL = "https://api.sleeper.app/v1";
@@ -85,11 +87,85 @@ export class SleeperService {
   private playersCacheTimestamp = 0;
   private readonly CACHE_DURATION_MS = 24 * 60 * 60 * 1000; // 24 hours
 
+  // File cache directory
+  private readonly cacheDir = path.join(__dirname, "..", "cache");
+
+  constructor() {
+    // Ensure cache directory exists
+    if (!fs.existsSync(this.cacheDir)) {
+      fs.mkdirSync(this.cacheDir, { recursive: true });
+    }
+  }
+
   /**
-   * Load all NFL players (cached for 24 hours)
+   * Get cached stats/projections from file system
+   */
+  private getCachedWeekData(
+    type: "stats" | "projections",
+    week: number,
+    season: number,
+    currentWeek: number
+  ): SleeperStats | null {
+    try {
+      const filename = `sleeper_${type}_${season}_week_${week}.json`;
+      const filepath = path.join(this.cacheDir, filename);
+
+      if (!fs.existsSync(filepath)) {
+        return null;
+      }
+
+      const cached = JSON.parse(fs.readFileSync(filepath, "utf-8"));
+
+      // Past weeks never expire (immutable)
+      if (week < currentWeek) {
+        return cached.data;
+      }
+
+      // Current week: 1 hour TTL (games in progress)
+      // Projections for future weeks: 24 hour TTL (can change)
+      const ttl = week === currentWeek ? 60 * 60 * 1000 : 24 * 60 * 60 * 1000;
+      if (Date.now() - cached.timestamp < ttl) {
+        return cached.data;
+      }
+
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Save stats/projections to file cache
+   */
+  private setCachedWeekData(
+    type: "stats" | "projections",
+    week: number,
+    season: number,
+    data: SleeperStats
+  ) {
+    try {
+      const filename = `sleeper_${type}_${season}_week_${week}.json`;
+      const filepath = path.join(this.cacheDir, filename);
+
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+        week,
+        season,
+        type,
+      };
+
+      fs.writeFileSync(filepath, JSON.stringify(cacheData, null, 2), "utf-8");
+    } catch (error) {
+      console.error(`Failed to cache ${type} for week ${week}:`, error);
+    }
+  }
+
+  /**
+   * Load all NFL players (cached for 24 hours in file + memory)
    */
   private async getPlayers(): Promise<Map<string, SleeperPlayer>> {
-    // Check cache
+    // Check memory cache first
     if (
       this.playersCache &&
       Date.now() - this.playersCacheTimestamp < this.CACHE_DURATION_MS
@@ -97,15 +173,47 @@ export class SleeperService {
       return this.playersCache;
     }
 
+    // Check file cache
+    try {
+      const filepath = path.join(this.cacheDir, "sleeper_players_nfl.json");
+
+      if (fs.existsSync(filepath)) {
+        const cached = JSON.parse(fs.readFileSync(filepath, "utf-8"));
+
+        // Check if file cache is still valid (24 hours)
+        if (Date.now() - cached.timestamp < this.CACHE_DURATION_MS) {
+          // Load into memory cache
+          this.playersCache = new Map(Object.entries(cached.data));
+          this.playersCacheTimestamp = cached.timestamp;
+          return this.playersCache;
+        }
+      }
+    } catch (error) {
+      // File cache failed, will fetch from API
+    }
+
+    // Fetch from Sleeper API
     try {
       const response = await axios.get<{ [id: string]: SleeperPlayer }>(
         `${SLEEPER_BASE_URL}/players/nfl`,
         { timeout: 30000 }
       );
 
-      // Convert to Map for easy lookup
+      // Save to memory cache
       this.playersCache = new Map(Object.entries(response.data));
       this.playersCacheTimestamp = Date.now();
+
+      // Save to file cache
+      try {
+        const filepath = path.join(this.cacheDir, "sleeper_players_nfl.json");
+        const cacheData = {
+          data: response.data,
+          timestamp: Date.now(),
+        };
+        fs.writeFileSync(filepath, JSON.stringify(cacheData), "utf-8");
+      } catch (error) {
+        console.error("Failed to save players to file cache:", error);
+      }
 
       return this.playersCache;
     } catch (error: any) {
@@ -148,17 +256,28 @@ export class SleeperService {
   }
 
   /**
-   * Get stats for a specific week
+   * Get stats for a specific week (with file caching)
    */
   async getWeekStats(
     week: number,
-    season = CURRENT_SEASON
+    season = CURRENT_SEASON,
+    currentWeek = 8
   ): Promise<SleeperStats> {
+    // Check cache first
+    const cached = this.getCachedWeekData("stats", week, season, currentWeek);
+    if (cached) {
+      return cached;
+    }
+
+    // Cache miss - fetch from Sleeper
     try {
       const response = await axios.get<SleeperStats>(
         `${SLEEPER_BASE_URL}/stats/nfl/regular/${season}/${week}`,
         { timeout: 10000 }
       );
+
+      // Save to cache
+      this.setCachedWeekData("stats", week, season, response.data);
 
       return response.data;
     } catch (error: any) {
@@ -171,17 +290,33 @@ export class SleeperService {
   }
 
   /**
-   * Get projections for a specific week
+   * Get projections for a specific week (with file caching)
    */
   async getWeekProjections(
     week: number,
-    season = CURRENT_SEASON
+    season = CURRENT_SEASON,
+    currentWeek = 8
   ): Promise<SleeperStats> {
+    // Check cache first
+    const cached = this.getCachedWeekData(
+      "projections",
+      week,
+      season,
+      currentWeek
+    );
+    if (cached) {
+      return cached;
+    }
+
+    // Cache miss - fetch from Sleeper
     try {
       const response = await axios.get<SleeperStats>(
         `${SLEEPER_BASE_URL}/projections/nfl/regular/${season}/${week}`,
         { timeout: 10000 }
       );
+
+      // Save to cache
+      this.setCachedWeekData("projections", week, season, response.data);
 
       return response.data;
     } catch (error: any) {
@@ -243,7 +378,8 @@ export class SleeperService {
     startWeek: number,
     endWeek: number,
     scoringSettings: ScoringSettings,
-    season = CURRENT_SEASON
+    season = CURRENT_SEASON,
+    currentWeek = 8
   ): Promise<NormalizedPlayerStats | null> {
     // Find player
     const player = await this.findPlayerByName(yahooPlayerName);
@@ -258,8 +394,8 @@ export class SleeperService {
     for (let week = startWeek; week <= endWeek; week++) {
       weekPromises.push(
         Promise.all([
-          this.getWeekStats(week, season),
-          this.getWeekProjections(week, season),
+          this.getWeekStats(week, season, currentWeek),
+          this.getWeekProjections(week, season, currentWeek),
         ]).then(([stats, projections]) => ({
           week,
           stats: stats[player.player_id] || {},

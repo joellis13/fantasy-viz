@@ -1,4 +1,6 @@
 import axios from "axios";
+import * as fs from "fs";
+import * as path from "path";
 import { normalizeLeague, normalizePlayerStats } from "./parsers";
 import { LeagueResponse, PlayerStatsResponse } from "./models";
 import { NormalizedLeague, NormalizedPlayerStats } from "./yahoo-types";
@@ -11,6 +13,16 @@ export class FantasyService {
   // Cache for roster data - key: "teamKey:week", value: roster data
   private rosterCache = new Map<string, { data: any; timestamp: number }>();
   private readonly cacheExpiryMs = 5 * 60 * 1000; // 5 minutes
+
+  // File cache directory
+  private readonly cacheDir = path.join(__dirname, "..", "cache");
+
+  constructor() {
+    // Ensure cache directory exists
+    if (!fs.existsSync(this.cacheDir)) {
+      fs.mkdirSync(this.cacheDir, { recursive: true });
+    }
+  }
 
   private async rateLimit() {
     const now = Date.now();
@@ -36,6 +48,113 @@ export class FantasyService {
     const cacheKey = `${teamKey}:${week}`;
     this.rosterCache.set(cacheKey, { data, timestamp: Date.now() });
   }
+
+  /**
+   * Get cached scoreboard from file system
+   * @param leagueKey League identifier
+   * @param week Week number
+   * @param currentWeek Current week (for TTL logic)
+   * @returns Cached data or null if not found/expired
+   */
+  private getCachedScoreboard(
+    leagueKey: string,
+    week: number,
+    currentWeek: number
+  ): any | null {
+    try {
+      const filename = `league_${leagueKey.replace(
+        /\./g,
+        "_"
+      )}_week_${week}_scoreboard.json`;
+      const filepath = path.join(this.cacheDir, filename);
+
+      if (!fs.existsSync(filepath)) {
+        return null;
+      }
+
+      const cached = JSON.parse(fs.readFileSync(filepath, "utf-8"));
+
+      // Past weeks never expire (immutable historical data)
+      if (week < currentWeek) {
+        return cached.data;
+      }
+
+      // Current week expires after 1 hour (games may still be in progress)
+      const oneHour = 60 * 60 * 1000;
+      if (Date.now() - cached.timestamp < oneHour) {
+        return cached.data;
+      }
+
+      return null;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Save scoreboard to file system cache
+   */
+  private setCachedScoreboard(leagueKey: string, week: number, data: any) {
+    try {
+      const filename = `league_${leagueKey.replace(
+        /\./g,
+        "_"
+      )}_week_${week}_scoreboard.json`;
+      const filepath = path.join(this.cacheDir, filename);
+
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+        week,
+        leagueKey,
+      };
+
+      fs.writeFileSync(filepath, JSON.stringify(cacheData, null, 2), "utf-8");
+    } catch (error) {
+      console.error(`Failed to cache scoreboard for week ${week}:`, error);
+    }
+  }
+
+  /**
+   * Get cached player info (name, position) from file system
+   * Player info never changes, so no TTL needed
+   */
+  private getCachedPlayerInfo(playerKey: string): any | null {
+    try {
+      const filename = `player_${playerKey.replace(/\./g, "_")}_info.json`;
+      const filepath = path.join(this.cacheDir, filename);
+
+      if (!fs.existsSync(filepath)) {
+        return null;
+      }
+
+      const cached = JSON.parse(fs.readFileSync(filepath, "utf-8"));
+      return cached.data;
+    } catch (error) {
+      return null;
+    }
+  }
+
+  /**
+   * Save player info to file cache
+   */
+  private setCachedPlayerInfo(playerKey: string, data: any) {
+    try {
+      const filename = `player_${playerKey.replace(/\./g, "_")}_info.json`;
+      const filepath = path.join(this.cacheDir, filename);
+
+      const cacheData = {
+        data,
+        timestamp: Date.now(),
+        playerKey,
+      };
+
+      fs.writeFileSync(filepath, JSON.stringify(cacheData, null, 2), "utf-8");
+    } catch (error) {
+      console.error(`Failed to cache player info for ${playerKey}:`, error);
+    }
+  }
+
   /**
    * Fetch league standings from Yahoo Fantasy API
    */
@@ -71,6 +190,19 @@ export class FantasyService {
         );
 
         for (const week of weeksToFetch) {
+          // Check file cache first
+          const cachedData = this.getCachedScoreboard(
+            leagueKey,
+            week,
+            currentWeek
+          );
+
+          if (cachedData) {
+            allScoreboardData.push(cachedData);
+            continue;
+          }
+
+          // Cache miss - fetch from Yahoo API
           const scoreboardUrl = `https://fantasysports.yahooapis.com/fantasy/v2/league/${encodeURIComponent(
             leagueKey
           )}/scoreboard;week=${week}?format=json`;
@@ -86,6 +218,9 @@ export class FantasyService {
           });
 
           allScoreboardData.push(weekResp.data);
+
+          // Save to file cache
+          this.setCachedScoreboard(leagueKey, week, weekResp.data);
         }
       } catch (scoreboardErr: any) {
         // Failed to fetch scoreboard data, will use synthetic scores as fallback
@@ -252,6 +387,57 @@ export class FantasyService {
         throw new Error("Not authorized. Please reconnect with Yahoo.");
       }
       throw new Error(`Failed to search players: ${err.message}`);
+    }
+  }
+
+  /**
+   * Get player info (name, position) with permanent file caching
+   */
+  async getPlayerInfo(
+    playerKey: string,
+    accessToken: string
+  ): Promise<{ name: string; position: string } | null> {
+    // Check cache first
+    const cached = this.getCachedPlayerInfo(playerKey);
+    if (cached) {
+      return cached;
+    }
+
+    // Fetch from Yahoo API (just week 1 to get name/position)
+    try {
+      const yahooUrl = `https://fantasysports.yahooapis.com/fantasy/v2/player/${encodeURIComponent(
+        playerKey
+      )}/stats;type=week;week=1?format=json`;
+
+      await this.rateLimit();
+      const resp = await axios.get(yahooUrl, {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+          "User-Agent":
+            "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36",
+        },
+        timeout: 10000,
+      });
+
+      if (resp.data?.fantasy_content?.player) {
+        const playerArray = resp.data.fantasy_content.player[0];
+        const nameObj = playerArray.find((item: any) => item.name);
+        const posObj = playerArray.find((item: any) => item.display_position);
+
+        const playerInfo = {
+          name: nameObj?.name?.full || "Unknown Player",
+          position: posObj?.display_position || "N/A",
+        };
+
+        // Save to cache (permanent - player names don't change)
+        this.setCachedPlayerInfo(playerKey, playerInfo);
+
+        return playerInfo;
+      }
+
+      return null;
+    } catch (error) {
+      return null;
     }
   }
 

@@ -177,69 +177,43 @@ export class PlayerController extends Controller {
         scoringRules: scoringRules,
       };
 
-      // Step 2: Get player info from Yahoo (to get names)
+      // Step 2: Get player info from Yahoo (to get names) - with caching
       const playerInfoPromises = keys.map(async (playerKey) => {
-        try {
-          // Fetch just one week to get player name/info
-          const weekData = await this.fantasyService.getPlayerStatsByKey(
-            playerKey,
-            1,
-            1,
-            token.access_token
-          );
+        const info = await this.fantasyService.getPlayerInfo(
+          playerKey,
+          token.access_token
+        );
 
-          if (
-            weekData.length > 0 &&
-            weekData[0].data?.fantasy_content?.player
-          ) {
-            const playerArray = weekData[0].data.fantasy_content.player[0];
-            const nameObj = playerArray.find((item: any) => item.name);
-            const posObj = playerArray.find(
-              (item: any) => item.display_position
-            );
-
-            return {
-              yahooKey: playerKey,
-              name: nameObj?.name?.full || "Unknown Player",
-              position: posObj?.display_position || "N/A",
-            };
-          }
-
-          return {
-            yahooKey: playerKey,
-            name: "Unknown Player",
-            position: "N/A",
-          };
-        } catch (error) {
-          return {
-            yahooKey: playerKey,
-            name: "Unknown Player",
-            position: "N/A",
-          };
-        }
+        return {
+          yahooKey: playerKey,
+          name: info?.name || "Unknown Player",
+          position: info?.position || "N/A",
+        };
       });
 
       const playerInfos = await Promise.all(playerInfoPromises);
 
-      // Step 3: Get full season stats from Sleeper
-      const players: NormalizedPlayerStats[] = [];
+      // Step 3: Get full season stats from Sleeper (in parallel)
+      const currentWeek = 8;
 
-      for (const info of playerInfos) {
+      const playersPromises = playerInfos.map(async (info) => {
         try {
           const sleeperStats = await this.sleeperService.getPlayerSeasonStats(
             info.name,
             startWeek,
             endWeek,
-            scoringSettings
+            scoringSettings,
+            2025, // season
+            currentWeek
           );
 
           if (sleeperStats) {
             // Preserve Yahoo player key for compatibility
             sleeperStats.playerKey = info.yahooKey;
-            players.push(sleeperStats);
+            return sleeperStats;
           } else {
             // Create empty player stats
-            players.push({
+            return {
               playerKey: info.yahooKey,
               playerId: info.yahooKey.split(".").pop() || "",
               name: info.name,
@@ -255,11 +229,11 @@ export class PlayerController extends Controller {
                 weeksPlayed: 0,
                 accuracyRate: 0,
               },
-            });
+            };
           }
         } catch (error: any) {
           // Create empty player stats on error
-          players.push({
+          return {
             playerKey: info.yahooKey,
             playerId: info.yahooKey.split(".").pop() || "",
             name: info.name,
@@ -275,9 +249,11 @@ export class PlayerController extends Controller {
               weeksPlayed: 0,
               accuracyRate: 0,
             },
-          });
+          };
         }
-      }
+      });
+
+      const players = await Promise.all(playersPromises);
 
       // Calculate head-to-head comparison
       let player1Better = 0;
