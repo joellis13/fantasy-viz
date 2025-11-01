@@ -7,7 +7,7 @@ import { AxisBottom, AxisLeft } from "@visx/axis";
 import { LegendOrdinal } from "@visx/legend";
 import { GridRows } from "@visx/grid";
 
-interface PlayerWeeklyComparison {
+interface PlayerWeeklyStats {
   week: number;
   projectedPoints: number;
   actualPoints: number;
@@ -25,21 +25,21 @@ interface PlayerSummary {
   accuracyRate: number;
 }
 
-interface NormalizedPlayerComparison {
+interface NormalizedPlayerStats {
   playerKey: string;
   playerId: string;
   name: string;
   position: string;
   team: string;
-  weeklyData: PlayerWeeklyComparison[];
+  weeklyData: PlayerWeeklyStats[];
   summary: PlayerSummary;
 }
 
-interface PlayerComparisonResponse {
+interface PlayerStatsResponse {
   teamKey: string;
   weekRange: { start: number; end: number };
   weeksRetrieved: number;
-  players: NormalizedPlayerComparison[];
+  players: NormalizedPlayerStats[];
   summary: {
     totalPlayers: number;
     averageAccuracy: number;
@@ -49,32 +49,30 @@ interface PlayerComparisonResponse {
 type SortOption = "points" | "difference" | "accuracy" | "name";
 type ViewMode = "chart" | "table";
 
-interface PlayerComparisonProps {
+interface PlayerStatsProps {
   initialTeamKey?: string;
 }
 
-export default function PlayerComparison({
-  initialTeamKey = "",
-}: PlayerComparisonProps) {
+export default function PlayerStats({ initialTeamKey = "" }: PlayerStatsProps) {
   const [teamKey, setTeamKey] = useState<string>(initialTeamKey);
   const [startWeek, setStartWeek] = useState<number>(1);
   const [endWeek, setEndWeek] = useState<number>(17);
-  const [data, setData] = useState<PlayerComparisonResponse | null>(null);
+  const [data, setData] = useState<PlayerStatsResponse | null>(null);
   const [loading, setLoading] = useState(false);
   const [selectedPlayer, setSelectedPlayer] = useState<string | null>(null);
   const [sortBy, setSortBy] = useState<SortOption>("points");
   const [viewMode, setViewMode] = useState<ViewMode>("chart");
   const [positionFilter, setPositionFilter] = useState<string>("ALL");
 
-  async function fetchPlayerComparison() {
+  async function fetchPlayerStats() {
     if (!teamKey) {
       alert("Enter a team key (e.g. 423.l.123456.t.1)");
       return;
     }
     setLoading(true);
     try {
-      const res = await axios.get<PlayerComparisonResponse>(
-        `/api/team/${encodeURIComponent(teamKey)}/player-comparison`,
+      const res = await axios.get<PlayerStatsResponse>(
+        `/api/team/${encodeURIComponent(teamKey)}/player-stats`,
         { params: { startWeek, endWeek } }
       );
       setData(res.data);
@@ -168,7 +166,7 @@ export default function PlayerComparison({
             style={{ padding: 8, width: 100 }}
           />
           <button
-            onClick={fetchPlayerComparison}
+            onClick={fetchPlayerStats}
             style={{ padding: "8px 16px" }}
             disabled={loading}
           >
@@ -314,7 +312,7 @@ export default function PlayerComparison({
               {selectedPlayerData && (
                 <div style={{ marginTop: 24 }}>
                   <h3>{selectedPlayerData.name} - Weekly Performance</h3>
-                  <PlayerComparisonChart player={selectedPlayerData} />
+                  <PlayerStatsChart player={selectedPlayerData} />
                 </div>
               )}
             </>
@@ -410,11 +408,7 @@ const tableCellStyle: React.CSSProperties = {
 };
 
 // Chart component for individual player
-function PlayerComparisonChart({
-  player,
-}: {
-  player: NormalizedPlayerComparison;
-}) {
+function PlayerStatsChart({ player }: { player: NormalizedPlayerStats }) {
   const width = 900;
   const height = 400;
   const margin = { top: 20, right: 120, bottom: 50, left: 60 };

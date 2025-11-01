@@ -1,7 +1,7 @@
 import axios from "axios";
-import { normalizeLeague, normalizePlayerComparison } from "./parsers";
-import { LeagueResponse, PlayerComparisonResponse } from "./models";
-import { NormalizedLeague, NormalizedPlayerComparison } from "./yahoo-types";
+import { normalizeLeague, normalizePlayerStats } from "./parsers";
+import { LeagueResponse, PlayerStatsResponse } from "./models";
+import { NormalizedLeague, NormalizedPlayerStats } from "./yahoo-types";
 
 export class FantasyService {
   /**
@@ -120,16 +120,16 @@ export class FantasyService {
   }
 
   /**
-   * Fetch player comparison data across multiple weeks
+   * Fetch player stats across multiple weeks
    */
-  async getPlayerComparison(
+  async getPlayerStats(
     teamKey: string,
     startWeek: number,
     endWeek: number,
     accessToken: string
-  ): Promise<PlayerComparisonResponse> {
+  ): Promise<PlayerStatsResponse> {
     console.log(
-      `Fetching player comparison for team ${teamKey}, weeks ${startWeek}-${endWeek}`
+      `Fetching player stats for team ${teamKey}, weeks ${startWeek}-${endWeek}`
     );
 
     // Fetch roster data for each week in parallel
@@ -172,14 +172,14 @@ export class FantasyService {
     );
 
     // Parse and normalize the data
-    const playerComparisons = normalizePlayerComparison(validResponses);
+    const playerStats = normalizePlayerStats(validResponses);
 
-    return this.convertPlayerComparisonResponse(
+    return this.convertPlayerStatsResponse(
       teamKey,
       startWeek,
       endWeek,
       validResponses.length,
-      playerComparisons
+      playerStats
     );
   }
 
@@ -206,18 +206,18 @@ export class FantasyService {
     };
   }
 
-  private convertPlayerComparisonResponse(
+  private convertPlayerStatsResponse(
     teamKey: string,
     startWeek: number,
     endWeek: number,
     weeksRetrieved: number,
-    playerComparisons: NormalizedPlayerComparison[]
-  ): PlayerComparisonResponse {
+    playerStats: NormalizedPlayerStats[]
+  ): PlayerStatsResponse {
     return {
       teamKey,
       weekRange: { start: startWeek, end: endWeek },
       weeksRetrieved,
-      players: playerComparisons.map((player) => ({
+      players: playerStats.map((player) => ({
         playerKey: player.playerKey,
         name: player.name,
         position: player.position,
@@ -241,13 +241,11 @@ export class FantasyService {
         },
       })),
       summary: {
-        totalPlayers: playerComparisons.length,
+        totalPlayers: playerStats.length,
         averageAccuracy:
-          playerComparisons.length > 0
-            ? playerComparisons.reduce(
-                (sum, p) => sum + p.summary.accuracyRate,
-                0
-              ) / playerComparisons.length
+          playerStats.length > 0
+            ? playerStats.reduce((sum, p) => sum + p.summary.accuracyRate, 0) /
+              playerStats.length
             : 0,
       },
     };

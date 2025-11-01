@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from "react";
 import axios from "axios";
 import LineChartVisx from "./components/LineChartVisx";
-import PlayerComparison from "./pages/PlayerComparison";
+import PlayerStats from "./pages/PlayerStats";
 
 type Point = { week: number; teamName: string; score: number };
 type Team = {
@@ -208,7 +208,7 @@ export default function App() {
           )}
         </>
       ) : (
-        <PlayerComparison initialTeamKey={selectedTeamKey} />
+        <PlayerStats initialTeamKey={selectedTeamKey} />
       )}
     </div>
   );

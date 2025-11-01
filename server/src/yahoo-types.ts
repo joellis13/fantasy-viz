@@ -305,9 +305,9 @@ export interface WeeklyTeamScore {
 }
 
 /**
- * Normalized player comparison data
+ * Normalized player statistics data
  */
-export interface PlayerWeeklyComparison {
+export interface PlayerWeeklyStats {
   week: number;
   projectedPoints: number;
   actualPoints: number;
@@ -315,13 +315,13 @@ export interface PlayerWeeklyComparison {
   percentDifference: number;
 }
 
-export interface NormalizedPlayerComparison {
+export interface NormalizedPlayerStats {
   playerKey: string;
   playerId: string;
   name: string;
   position: string;
   team: string;
-  weeklyData: PlayerWeeklyComparison[];
+  weeklyData: PlayerWeeklyStats[];
   summary: {
     totalProjected: number;
     totalActual: number;

@@ -47,7 +47,7 @@ export interface PlayerSummary {
   accuracyRate: number;
 }
 
-export interface PlayerComparison {
+export interface PlayerStats {
   playerKey: string;
   name: string;
   position: string;
@@ -56,14 +56,14 @@ export interface PlayerComparison {
   summary: PlayerSummary;
 }
 
-export interface PlayerComparisonResponse {
+export interface PlayerStatsResponse {
   teamKey: string;
   weekRange: {
     start: number;
     end: number;
   };
   weeksRetrieved: number;
-  players: PlayerComparison[];
+  players: PlayerStats[];
   summary: {
     totalPlayers: number;
     averageAccuracy: number;

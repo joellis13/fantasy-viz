@@ -11,8 +11,8 @@ import type {
   TeamRosterResponse,
   YahooRosterPlayer,
   YahooPlayerInfo,
-  NormalizedPlayerComparison,
-  PlayerWeeklyComparison,
+  NormalizedPlayerStats,
+  PlayerWeeklyStats,
 } from "./yahoo-types";
 
 /**
@@ -563,12 +563,12 @@ function parsePlayerWeekData(playerWrapper: YahooRosterPlayer): {
 }
 
 /**
- * Normalize player comparison data from multiple weekly roster responses
- * Takes an array of roster responses (one per week) and combines them into a single comparison
+ * Normalize player stats data from multiple weekly roster responses
+ * Takes an array of roster responses (one per week) and combines them into a single stats view
  */
-export function normalizePlayerComparison(
+export function normalizePlayerStats(
   weeklyRosterResponses: Array<{ week: number; data: unknown }>
-): NormalizedPlayerComparison[] {
+): NormalizedPlayerStats[] {
   const playerMap = new Map<
     string,
     {
@@ -577,7 +577,7 @@ export function normalizePlayerComparison(
       name: string;
       position: string;
       team: string;
-      weeklyData: PlayerWeeklyComparison[];
+      weeklyData: PlayerWeeklyStats[];
     }
   >();
 
@@ -695,7 +695,7 @@ export function normalizePlayerComparison(
 
     // Convert map to array and calculate summaries
     // Filter out players with no weekly data OR players who never actually played
-    const result: NormalizedPlayerComparison[] = Array.from(playerMap.values())
+    const result: NormalizedPlayerStats[] = Array.from(playerMap.values())
       .filter(
         (player) =>
           player.weeklyData.length > 0 &&
@@ -771,7 +771,7 @@ export function normalizePlayerComparison(
 
     return result;
   } catch (err) {
-    console.error("normalizePlayerComparison error:", err);
+    console.error("normalizePlayerStats error:", err);
     if (err instanceof Error) {
       console.error("Error details:", err.message, err.stack);
     }
