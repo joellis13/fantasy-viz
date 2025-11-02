@@ -2,7 +2,31 @@
 
 This project scaffolds a TypeScript React frontend using Vite and Visx, as well as a TypeScript Express backend that implements Yahoo OAuth and proxies Yahoo Fantasy API calls.
 
-## Registering a Yahoo App
+## Deployment Options
+
+### Self-Hosted Deployment (Recommended)
+
+**IP-Based (No Domain Required):**
+- 📄 Follow [DEPLOYMENT_STEPS.md](./DEPLOYMENT_STEPS.md)
+- Uses `docker-compose.ip.yml` with self-signed SSL
+- Perfect for personal home server deployment
+
+**Domain-Based (Custom Domain):**
+- 📄 Follow [HOME_SERVER_DEPLOYMENT.md](./HOME_SERVER_DEPLOYMENT.md)
+- Uses `docker-compose.yml` with Let's Encrypt SSL
+- Includes automatic certificate renewal
+
+**Not sure which to use?** See [DOCKER_COMPOSE_FILES.md](./DOCKER_COMPOSE_FILES.md) for a detailed comparison.
+
+### Cloud Deployment
+
+See [DEPLOYMENT.md](./DEPLOYMENT.md) for Render.com deployment (not recommended due to performance issues).
+
+---
+
+## Local Development
+
+### Registering a Yahoo App
 
 To use Yahoo OAuth, you first need to register an application:
 1. Go to the [Yahoo Developer Network](https://developer.yahoo.com/apps/).
