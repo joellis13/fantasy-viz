@@ -1,8 +1,12 @@
 # Home Server Deployment Guide
 
+> **⚠️ NOTE:** This guide is for deploying with a **domain name** and **Let's Encrypt SSL certificates**.
+> 
+> **If you're deploying with just an IP address** (e.g., `https://108.209.89.147`), use **[DEPLOYMENT_STEPS.md](DEPLOYMENT_STEPS.md)** instead - it's simpler and uses self-signed certificates.
+
 ## Overview
 
-This guide will help you deploy Fantasy Viz to your Ubuntu home server using Docker Compose with an Nginx reverse proxy and automatic SSL certificates.
+This guide will help you deploy Fantasy Viz to your Ubuntu home server using Docker Compose with an Nginx reverse proxy and automatic SSL certificates from Let's Encrypt.
 
 ## Architecture
 

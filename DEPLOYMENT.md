@@ -1,8 +1,32 @@
-# Deploying Fantasy Viz to Render.com
+# Fantasy Viz Deployment Guide
 
-This guide walks you through deploying the Fantasy Viz app to Render.com for free.
+This document provides an overview of available deployment options for Fantasy Viz.
 
-## Prerequisites
+## Recommended Deployment: Self-Hosted with HTTPS
+
+**For IP-based deployment (no domain required):**
+- 📄 **Follow**: [DEPLOYMENT_STEPS.md](./DEPLOYMENT_STEPS.md)
+- Uses: Self-signed SSL certificates, Docker Compose, Nginx reverse proxy
+- Perfect for: Personal use, home server deployment
+
+**For domain-based deployment (with custom domain):**
+- 📄 **Follow**: [HOME_SERVER_DEPLOYMENT.md](./HOME_SERVER_DEPLOYMENT.md)
+- Uses: Let's Encrypt SSL, Docker Compose, Nginx reverse proxy, optional DDNS
+- Perfect for: Public-facing production deployment
+
+---
+
+## Alternative: Render.com (Not Recommended)
+
+⚠️ **Note**: Render.com free tier has significant performance issues:
+- Apps spin down after 15 minutes of inactivity
+- First request after spin-down takes 30-60 seconds
+- Limited to 512MB RAM
+- Not suitable for real-world use
+
+The instructions below are kept for reference only.
+
+### Prerequisites
 
 1. A GitHub account with this repository pushed
 2. A Render.com account (free, no credit card required)

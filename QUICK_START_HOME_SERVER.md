@@ -1,5 +1,9 @@
 # Quick Reference: Home Server Deployment
 
+> **⚠️ NOTE:** This guide is for **domain-based deployment** with Let's Encrypt.
+> 
+> **For IP-based deployment** (e.g., `https://108.209.89.147`), see **[DEPLOYMENT_STEPS.md](DEPLOYMENT_STEPS.md)** instead.
+
 ## First Time Setup
 
 1. **On your server:**

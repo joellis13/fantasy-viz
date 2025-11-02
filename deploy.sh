@@ -1,6 +1,11 @@
 #!/bin/bash
 
 # Fantasy Viz Home Server Deployment Script
+# This script is for DOMAIN-BASED deployment with Let's Encrypt SSL
+#
+# ⚠️  For IP-based deployment (e.g., https://108.209.89.147), 
+#     follow DEPLOYMENT_STEPS.md instead - it's simpler!
+#
 # This script helps set up the Docker environment on your Ubuntu server
 
 set -e  # Exit on error
