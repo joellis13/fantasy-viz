@@ -1,11 +1,11 @@
 services:
   - type: web
     name: fantasy-viz
-    env: node
+    runtime: node
     region: oregon
     plan: free
     buildCommand: npm install && npm run build
-    startCommand: npm run start:prod
+    startCommand: cd server && node dist/index.js
     envVars:
       - key: NODE_ENV
         value: production
