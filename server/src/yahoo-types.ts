@@ -313,6 +313,7 @@ export interface PlayerWeeklyStats {
   actualPoints: number;
   difference: number;
   percentDifference: number;
+  breakdown?: Array<{ stat: string; value: number; points: number }>; // Optional stat breakdown
 }
 
 export interface NormalizedPlayerStats {

@@ -91,19 +91,13 @@ function buildYahooAuthUrl(state: string) {
 app.get("/auth/yahoo/login", (req, res) => {
   const state = crypto.randomBytes(32).toString("hex");
   req.session!.oauthState = state;
-  console.log("[OAuth Login] Setting state in session:", state);
-  console.log("[OAuth Login] Session after setting:", req.session);
   const url = buildYahooAuthUrl(state);
-  // console.log("Yahoo auth URL:", url);
   if (req.query.debug) return res.json({ url });
   res.redirect(url);
 });
 
 app.get("/auth/yahoo/callback", async (req, res) => {
   const { code, state } = req.query;
-  console.log("[OAuth Callback] Received state:", state);
-  console.log("[OAuth Callback] Session state:", req.session?.oauthState);
-  console.log("[OAuth Callback] Full session:", req.session);
 
   if (!code || !state || req.session!.oauthState !== state) {
     console.error("[OAuth Callback] State mismatch or missing code");

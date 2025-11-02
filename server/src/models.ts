@@ -34,6 +34,7 @@ export interface WeeklyPlayerData {
   actualPoints: number;
   difference: number;
   status: string;
+  breakdown?: Array<{ stat: string; value: number; points: number }>;
 }
 
 export interface PlayerSummary {

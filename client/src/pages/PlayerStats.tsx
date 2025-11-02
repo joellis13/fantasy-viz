@@ -15,6 +15,7 @@ interface PlayerWeeklyStats {
   actualPoints: number;
   difference: number;
   percentDifference: number;
+  breakdown?: Array<{ stat: string; value: number; points: number }>;
 }
 
 interface PlayerSummary {
@@ -747,6 +748,7 @@ function PlayerStatsChart({ player }: { player: NormalizedPlayerStats }) {
     projected: number;
     actual: number;
     difference: number;
+    breakdown?: Array<{ stat: string; value: number; points: number }>;
   }>();
 
   const weeks = player.weeklyData.map((d) => d.week);
@@ -785,6 +787,7 @@ function PlayerStatsChart({ player }: { player: NormalizedPlayerStats }) {
             projected: d.projectedPoints,
             actual: d.actualPoints,
             difference: d.difference,
+            breakdown: d.breakdown, // Include breakdown data
           },
           tooltipLeft: coords.x,
           tooltipTop: coords.y,
@@ -893,6 +896,7 @@ function PlayerStatsChart({ player }: { player: NormalizedPlayerStats }) {
             fontSize: "14px",
             zIndex: 1000,
             pointerEvents: "none",
+            maxWidth: "300px",
           }}
         >
           <div style={{ fontWeight: "bold", marginBottom: 4 }}>
@@ -909,6 +913,37 @@ function PlayerStatsChart({ player }: { player: NormalizedPlayerStats }) {
             Difference: {tooltipData.difference > 0 ? "+" : ""}
             {tooltipData.difference.toFixed(2)}
           </div>
+
+          {/* Show breakdown for actual points if available */}
+          {tooltipData.breakdown && tooltipData.breakdown.length > 0 && (
+            <div
+              style={{
+                marginTop: 8,
+                paddingTop: 8,
+                borderTop: "1px solid rgba(255, 255, 255, 0.2)",
+              }}
+            >
+              <div style={{ fontSize: "12px", marginBottom: 4, opacity: 0.8 }}>
+                Breakdown:
+              </div>
+              {tooltipData.breakdown.map((item, idx) => (
+                <div
+                  key={idx}
+                  style={{
+                    fontSize: "11px",
+                    display: "flex",
+                    justifyContent: "space-between",
+                    gap: 8,
+                  }}
+                >
+                  <span style={{ opacity: 0.8 }}>
+                    {item.stat}: {item.value}
+                  </span>
+                  <span>{item.points.toFixed(2)} pts</span>
+                </div>
+              ))}
+            </div>
+          )}
         </TooltipWithBounds>
       )}
 

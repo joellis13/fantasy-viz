@@ -361,11 +361,16 @@ export class SleeperService {
 
   /**
    * Calculate fantasy points from Sleeper stats using Yahoo scoring settings
+   * Returns both total points and detailed breakdown
    */
   calculateFantasyPoints(
     stats: SleeperStats[string],
-    scoringSettings: ScoringSettings
-  ): number {
+    scoringSettings: ScoringSettings,
+    playerName = "Unknown Player"
+  ): {
+    points: number;
+    breakdown: Array<{ stat: string; value: number; points: number }>;
+  } {
     let totalPoints = 0;
 
     // Map Yahoo stat IDs to Sleeper stat fields
@@ -387,6 +392,9 @@ export class SleeperService {
     };
 
     // Calculate points based on scoring rules
+    const breakdown: Array<{ stat: string; value: number; points: number }> =
+      [];
+
     for (const [
       yahooStatId,
       points,
@@ -394,11 +402,21 @@ export class SleeperService {
       const sleeperStatKey = yahooToSleeper[yahooStatId];
       if (sleeperStatKey && stats[sleeperStatKey] !== undefined) {
         const statValue = stats[sleeperStatKey] || 0;
-        totalPoints += statValue * points;
+        if (statValue === 0) continue; // Skip zero stats
+
+        const pointsEarned = statValue * points;
+        totalPoints += pointsEarned;
+
+        // Collect all non-zero stats for breakdown
+        breakdown.push({
+          stat: sleeperStatKey,
+          value: statValue,
+          points: pointsEarned,
+        });
       }
     }
 
-    return totalPoints;
+    return { points: totalPoints, breakdown };
   }
 
   /**
@@ -439,22 +457,36 @@ export class SleeperService {
 
     // Process each week
     for (const { week, stats, projections } of weeklyResults) {
-      const actualPoints = this.calculateFantasyPoints(stats, scoringSettings);
-      const projectedPoints = this.calculateFantasyPoints(
+      const actualResult = this.calculateFantasyPoints(
+        stats,
+        scoringSettings,
+        `${yahooPlayerName} - Week ${week} (Actual)`
+      );
+      const projectedResult = this.calculateFantasyPoints(
         projections,
-        scoringSettings
+        scoringSettings,
+        `${yahooPlayerName} - Week ${week} (Projected)`
       );
 
-      weeklyData.push({
+      const weekData: PlayerWeeklyStats = {
         week,
-        projectedPoints,
-        actualPoints,
-        difference: actualPoints - projectedPoints,
+        projectedPoints: projectedResult.points,
+        actualPoints: actualResult.points,
+        difference: actualResult.points - projectedResult.points,
         percentDifference:
-          projectedPoints > 0
-            ? ((actualPoints - projectedPoints) / projectedPoints) * 100
+          projectedResult.points > 0
+            ? ((actualResult.points - projectedResult.points) /
+                projectedResult.points) *
+              100
             : 0,
-      });
+      };
+
+      // Only include breakdown if there are actual points (played week)
+      if (actualResult.points > 0 && actualResult.breakdown.length > 0) {
+        weekData.breakdown = actualResult.breakdown;
+      }
+
+      weeklyData.push(weekData);
     }
 
     // Calculate summary stats

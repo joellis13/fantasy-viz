@@ -108,6 +108,20 @@ export class FantasyPointsCalculator {
         }
       }
 
+      // Add default 2pt conversion rules if not present (Yahoo often omits these from API)
+      // Stat ID 8 = Passing 2pt conversions (2 points)
+      // Stat ID 15 = Receiving 2pt conversions (2 points)
+      // Stat ID 16 = Rushing 2pt conversions (2 points)
+      if (!scoringRules.has(8)) {
+        scoringRules.set(8, 2); // Passing 2pt
+      }
+      if (!scoringRules.has(15)) {
+        scoringRules.set(15, 2); // Receiving 2pt
+      }
+      if (!scoringRules.has(16)) {
+        scoringRules.set(16, 2); // Rushing 2pt
+      }
+
       // Cache the results in memory
       this.cache.set(leagueKey, {
         scoringRules,

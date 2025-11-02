@@ -292,6 +292,7 @@ export class PlayerController extends Controller {
             actualPoints: w.actualPoints,
             difference: w.difference,
             status: "",
+            ...(w.breakdown && { breakdown: w.breakdown }), // Include breakdown if present
           })),
           summary: {
             totalWeeks: p.summary.weeksPlayed,
