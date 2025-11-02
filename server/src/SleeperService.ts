@@ -15,6 +15,25 @@ import { NormalizedPlayerStats, PlayerWeeklyStats } from "./yahoo-types";
 const SLEEPER_BASE_URL = "https://api.sleeper.app/v1";
 const CURRENT_SEASON = 2025; // NFL season year
 
+/**
+ * Retry helper for network timeouts
+ */
+async function retryRequest<T>(
+  fn: () => Promise<T>,
+  retries = 2,
+  delay = 1000
+): Promise<T> {
+  try {
+    return await fn();
+  } catch (error: any) {
+    if (retries > 0 && error.code === "ETIMEDOUT") {
+      await new Promise((resolve) => setTimeout(resolve, delay));
+      return retryRequest(fn, retries - 1, delay * 2);
+    }
+    throw error;
+  }
+}
+
 interface SleeperPlayer {
   player_id: string;
   first_name: string;
@@ -269,11 +288,13 @@ export class SleeperService {
       return cached;
     }
 
-    // Cache miss - fetch from Sleeper
+    // Cache miss - fetch from Sleeper with retry
     try {
-      const response = await axios.get<SleeperStats>(
-        `${SLEEPER_BASE_URL}/stats/nfl/regular/${season}/${week}`,
-        { timeout: 30000 }
+      const response = await retryRequest(() =>
+        axios.get<SleeperStats>(
+          `${SLEEPER_BASE_URL}/stats/nfl/regular/${season}/${week}`,
+          { timeout: 30000 }
+        )
       );
 
       // Save to cache
@@ -312,11 +333,13 @@ export class SleeperService {
       return cached;
     }
 
-    // Cache miss - fetch from Sleeper
+    // Cache miss - fetch from Sleeper with retry
     try {
-      const response = await axios.get<SleeperStats>(
-        `${SLEEPER_BASE_URL}/projections/nfl/regular/${season}/${week}`,
-        { timeout: 30000 }
+      const response = await retryRequest(() =>
+        axios.get<SleeperStats>(
+          `${SLEEPER_BASE_URL}/projections/nfl/regular/${season}/${week}`,
+          { timeout: 30000 }
+        )
       );
 
       // Save to cache
