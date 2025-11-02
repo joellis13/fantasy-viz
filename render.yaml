@@ -2,7 +2,7 @@ services:
   - type: web
     name: fantasy-viz
     runtime: node
-    region: oregon
+    region: ohio
     plan: free
     buildCommand: npm install && npm run build
     startCommand: cd server && node dist/index.js
