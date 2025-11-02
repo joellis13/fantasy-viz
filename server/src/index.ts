@@ -69,17 +69,6 @@ try {
 // Register tsoa-generated routes
 RegisterRoutes(app);
 
-// In production, serve the built client app
-if (process.env.NODE_ENV === "production") {
-  const clientBuildPath = path.join(__dirname, "..", "..", "client", "dist");
-  app.use(express.static(clientBuildPath));
-
-  // Serve index.html for all unmatched routes (SPA support)
-  app.get("*", (req, res) => {
-    res.sendFile(path.join(clientBuildPath, "index.html"));
-  });
-}
-
 function buildYahooAuthUrl(state: string) {
   const authUrl = "https://api.login.yahoo.com/oauth2/request_auth";
   const params = new URLSearchParams({
@@ -93,7 +82,7 @@ function buildYahooAuthUrl(state: string) {
   return `${authUrl}?${params.toString()}`;
 }
 
-// Debug-friendly login handler: returns constructed URL when ?debug=1
+// OAuth routes - MUST come before static file serving
 app.get("/auth/yahoo/login", (req, res) => {
   const state = crypto.randomBytes(32).toString("hex");
   req.session!.oauthState = state;
@@ -152,6 +141,18 @@ app.get("/debug/token", async (req, res) => {
     accessToken: token.access_token,
   });
 });
+
+// In production, serve the built client app
+// MUST come AFTER all API and auth routes
+if (process.env.NODE_ENV === "production") {
+  const clientBuildPath = path.join(__dirname, "..", "..", "client", "dist");
+  app.use(express.static(clientBuildPath));
+
+  // Serve index.html for all unmatched routes (SPA support)
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(clientBuildPath, "index.html"));
+  });
+}
 
 /**
  * Server start logic:
