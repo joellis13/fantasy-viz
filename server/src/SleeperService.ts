@@ -283,7 +283,11 @@ export class SleeperService {
     } catch (error: any) {
       console.error(
         `[SleeperService] Failed to fetch week ${week} stats:`,
-        error.message
+        error.message,
+        "Status:",
+        error.response?.status,
+        "Code:",
+        error.code
       );
       return {}; // Return empty stats on error
     }
@@ -320,9 +324,13 @@ export class SleeperService {
 
       return response.data;
     } catch (error: any) {
-      console.warn(
+      console.error(
         `[SleeperService] Failed to fetch week ${week} projections:`,
-        error.message
+        error.message,
+        "Status:",
+        error.response?.status,
+        "Code:",
+        error.code
       );
       return {}; // Return empty projections on error
     }
