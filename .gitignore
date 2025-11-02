@@ -11,8 +11,5 @@
 # debug files
 /server/debug-*.json
 
-# cache files (persistent across restarts)
+# Cache directory - regenerated automatically, don't commit
 /server/cache/
-
-# Sensitive: OAuth tokens
-/server/cache/tokens.json

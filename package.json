@@ -7,6 +7,8 @@
   ],
   "scripts": {
     "start": "start npm --prefix ./server/ run dev && start npm --prefix ./client/ run dev",
-    "install-all": "npm install --workspaces"
+    "install-all": "npm install --workspaces",
+    "build": "cd server && npm run build && cd ../client && npm run build",
+    "start:prod": "cd server && npm start"
   }
 }

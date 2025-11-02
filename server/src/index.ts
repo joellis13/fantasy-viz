@@ -67,9 +67,16 @@ try {
 // Register tsoa-generated routes
 RegisterRoutes(app);
 
-// Helper token store (POC). Replace with DB in production.
-// Moved to shared location for controllers
-// const tokenStore = new Map<string, any>();
+// In production, serve the built client app
+if (process.env.NODE_ENV === "production") {
+  const clientBuildPath = path.join(__dirname, "..", "..", "client", "dist");
+  app.use(express.static(clientBuildPath));
+
+  // Serve index.html for all unmatched routes (SPA support)
+  app.get("*", (req, res) => {
+    res.sendFile(path.join(clientBuildPath, "index.html"));
+  });
+}
 
 function buildYahooAuthUrl(state: string) {
   const authUrl = "https://api.login.yahoo.com/oauth2/request_auth";
@@ -145,11 +152,12 @@ app.get("/debug/token", async (req, res) => {
 });
 
 /**
- * Server start logic with optional HTTPS for local dev:
- * - Set BASE_URL to an https:// URL to start HTTPS.
- * - Ensure SSL_CERT_PATH and SSL_KEY_PATH (or defaults server/certs/localhost.pem and server/certs/localhost-key.pem) exist.
+ * Server start logic:
+ * - In production (NODE_ENV=production): Use HTTP (Render provides HTTPS proxy)
+ * - In development: Use HTTPS if BASE_URL starts with https:// and certs are available
  */
 const PORT = process.env.PORT || 5000;
+const isProduction = process.env.NODE_ENV === "production";
 const baseUrl = (BASE_URL || `http://localhost:${PORT}`).toLowerCase();
 
 function createHttpServer() {
@@ -192,8 +200,14 @@ function createHttpsServer(certPath?: string, keyPath?: string) {
   }
 }
 
-if (baseUrl.startsWith("https://")) {
+// Production: Always use HTTP (Render provides HTTPS)
+if (isProduction) {
+  createHttpServer();
+  console.log(`Server running in production mode on port ${PORT}`);
+} else if (baseUrl.startsWith("https://")) {
+  // Development: Use HTTPS if BASE_URL is https://
   createHttpsServer();
 } else {
+  // Development: Use HTTP
   createHttpServer();
 }
