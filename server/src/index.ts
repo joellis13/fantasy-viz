@@ -17,6 +17,11 @@ dotenv.config();
 const app = express();
 app.use(express.json());
 
+// Trust proxy - Render uses a proxy for HTTPS
+if (process.env.NODE_ENV === "production") {
+  app.set("trust proxy", 1);
+}
+
 const {
   YAHOO_CLIENT_ID,
   YAHOO_CLIENT_SECRET,
