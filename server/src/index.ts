@@ -27,6 +27,8 @@ const {
   SSL_KEY_PATH,
 } = process.env;
 
+const isProduction = process.env.NODE_ENV === "production";
+
 if (!YAHOO_CLIENT_ID || !YAHOO_CLIENT_SECRET) {
   console.warn(
     "YAHOO_CLIENT_ID/YAHOO_CLIENT_SECRET are not set. Set them for OAuth to work."
@@ -39,7 +41,7 @@ app.use(
     keys: [SESSION_SECRET],
     maxAge: 24 * 60 * 60 * 1000,
     httpOnly: true,
-    secure: BASE_URL.startsWith("https://"),
+    secure: isProduction || BASE_URL.startsWith("https://"),
     sameSite: "lax",
   })
 );
@@ -157,7 +159,6 @@ app.get("/debug/token", async (req, res) => {
  * - In development: Use HTTPS if BASE_URL starts with https:// and certs are available
  */
 const PORT = process.env.PORT || 5000;
-const isProduction = process.env.NODE_ENV === "production";
 const baseUrl = (BASE_URL || `http://localhost:${PORT}`).toLowerCase();
 
 function createHttpServer() {
