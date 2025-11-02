@@ -273,7 +273,7 @@ export class SleeperService {
     try {
       const response = await axios.get<SleeperStats>(
         `${SLEEPER_BASE_URL}/stats/nfl/regular/${season}/${week}`,
-        { timeout: 10000 }
+        { timeout: 30000 }
       );
 
       // Save to cache
@@ -312,7 +312,7 @@ export class SleeperService {
     try {
       const response = await axios.get<SleeperStats>(
         `${SLEEPER_BASE_URL}/projections/nfl/regular/${season}/${week}`,
-        { timeout: 10000 }
+        { timeout: 30000 }
       );
 
       // Save to cache
