@@ -1,0 +1,54 @@
+# Node modules
+node_modules
+**/node_modules
+
+# Build artifacts
+dist
+**/dist
+.next
+
+# Development files
+.git
+.gitignore
+*.log
+npm-debug.log*
+
+# Environment files
+.env
+.env.local
+.env.*.local
+
+# IDE files
+.vscode
+.idea
+*.swp
+*.swo
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Test files
+coverage
+.nyc_output
+
+# Documentation
+*.md
+!README.md
+
+# Deployment files
+docker-compose.yml
+Dockerfile
+.dockerignore
+
+# Cache and temp files
+server/cache/*
+server/tokens/*
+certbot
+nginx
+
+# Development certs
+server/certs/*.pem
+
+# Render deployment
+render.yaml

@@ -148,6 +148,11 @@ app.get("/debug/token", async (req, res) => {
   });
 });
 
+// Health check endpoint for Docker and monitoring
+app.get("/health", (req, res) => {
+  res.status(200).json({ status: "ok", timestamp: new Date().toISOString() });
+});
+
 // In production, serve the built client app
 // MUST come AFTER all API and auth routes
 if (process.env.NODE_ENV === "production") {

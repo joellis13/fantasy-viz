@@ -1,6 +1,7 @@
 **/node_modules
 **/dist
 .env
+.env.production
 *.log
 /server/certs/*.pem
 
@@ -13,3 +14,8 @@
 
 # Cache directory - regenerated automatically, don't commit
 /server/cache/
+/server/tokens/
+
+# Docker and deployment
+certbot/
+nginx/logs/
